@@ -1,0 +1,244 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  ORDER_MANAGER
+  INVENTORY_MANAGER
+}
+
+enum OrderStatus {
+  NEW
+  CONFIRMED
+  PACKING
+  READY
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum StockTxnType {
+  OPENING
+  PURCHASE
+  SALE
+  CANCELLATION
+  ADJUSTMENT
+  DAMAGE
+}
+
+enum OfferType {
+  PERCENTAGE
+  FIXED
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(ADMIN)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  auditLogs    AuditLog[]
+}
+
+model Category {
+  id           Int       @id @default(autoincrement())
+  name         String    @unique
+  slug         String    @unique
+  description  String?   @db.Text
+  imageUrl     String?
+  displayOrder Int       @default(0)
+  active       Boolean   @default(true)
+  products     Product[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Product {
+  id             Int      @id @default(autoincrement())
+  sku            String   @unique
+  name           String
+  slug           String   @unique
+  description    String?  @db.Text
+  categoryId     Int
+  category       Category @relation(fields: [categoryId], references: [id])
+  brand          String?
+  purchasePrice  Decimal  @db.Decimal(12, 2)
+  mrp            Decimal  @db.Decimal(12, 2)
+  retailPrice    Decimal  @db.Decimal(12, 2)
+  wholesalePrice Decimal? @db.Decimal(12, 2)
+  stock          Int      @default(0)
+  minStock       Int      @default(0)
+  unit           String   @default("1 Box")
+  imageUrl       String?
+  featured       Boolean  @default(false)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  orderItems     OrderItem[]
+  stockTxns      StockTransaction[]
+  purchaseItems  PurchaseItem[]
+
+  @@index([categoryId])
+}
+
+model Customer {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String   @unique
+  whatsapp  String?
+  email     String?
+  address   String?  @db.Text
+  city      String?
+  district  String?
+  state     String?
+  pincode   String?
+  orders    Order[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Order {
+  id                Int                  @id @default(autoincrement())
+  orderNumber       String               @unique
+  customerId        Int
+  customer          Customer             @relation(fields: [customerId], references: [id])
+  status            OrderStatus          @default(NEW)
+  subtotal          Decimal              @db.Decimal(12, 2)
+  discount          Decimal              @default(0) @db.Decimal(12, 2)
+  deliveryCharge    Decimal              @default(0) @db.Decimal(12, 2)
+  total             Decimal              @db.Decimal(12, 2)
+  deliveryMethod    String               @default("PICKUP")
+  deliveryAddress   String?              @db.Text
+  notes             String?              @db.Text
+  inventoryRestored Boolean              @default(false)
+  items             OrderItem[]
+  statusHistory     OrderStatusHistory[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+}
+
+model OrderItem {
+  id          Int     @id @default(autoincrement())
+  orderId     Int
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   Int
+  product     Product @relation(fields: [productId], references: [id])
+  productName String
+  sku         String
+  unitPrice   Decimal @db.Decimal(12, 2)
+  quantity    Int
+  lineTotal   Decimal @db.Decimal(12, 2)
+}
+
+model OrderStatusHistory {
+  id        Int         @id @default(autoincrement())
+  orderId   Int
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status    OrderStatus
+  note      String?
+  createdAt DateTime    @default(now())
+}
+
+model StockTransaction {
+  id        Int          @id @default(autoincrement())
+  productId Int
+  product   Product      @relation(fields: [productId], references: [id])
+  type      StockTxnType
+  quantity  Int
+  reference String?
+  note      String?
+  createdAt DateTime     @default(now())
+}
+
+model Offer {
+  id          Int       @id @default(autoincrement())
+  title       String
+  description String?   @db.Text
+  type        OfferType
+  value       Decimal   @db.Decimal(12, 2)
+  minOrder    Decimal?  @db.Decimal(12, 2)
+  startAt     DateTime
+  endAt       DateTime
+  bannerUrl   String?
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Supplier {
+  id            Int        @id @default(autoincrement())
+  name          String
+  contactPerson String?
+  phone         String?
+  whatsapp      String?
+  email         String?
+  gstNumber     String?
+  address       String?    @db.Text
+  city          String?
+  notes         String?    @db.Text
+  active        Boolean    @default(true)
+  purchases     Purchase[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+model Purchase {
+  id         Int            @id @default(autoincrement())
+  number     String         @unique
+  supplierId Int
+  supplier   Supplier       @relation(fields: [supplierId], references: [id])
+  subtotal   Decimal        @db.Decimal(12, 2)
+  charges    Decimal        @default(0) @db.Decimal(12, 2)
+  total      Decimal        @db.Decimal(12, 2)
+  notes      String?        @db.Text
+  items      PurchaseItem[]
+  createdAt  DateTime       @default(now())
+}
+
+model PurchaseItem {
+  id         Int      @id @default(autoincrement())
+  purchaseId Int
+  purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  productId  Int
+  product    Product  @relation(fields: [productId], references: [id])
+  quantity   Int
+  unitCost   Decimal  @db.Decimal(12, 2)
+  lineTotal  Decimal  @db.Decimal(12, 2)
+}
+
+model ShopSettings {
+  id              Int      @id @default(1)
+  shopName        String   @default("Saravana Crackers")
+  phone           String?
+  whatsapp        String?
+  email           String?
+  address         String?  @db.Text
+  minimumOrder    Decimal  @default(0) @db.Decimal(12, 2)
+  deliveryCharge  Decimal  @default(0) @db.Decimal(12, 2)
+  pickupEnabled   Boolean  @default(true)
+  deliveryEnabled Boolean  @default(true)
+  heroTitle       String?  @default("Celebrate Brighter with Saravana Crackers")
+  heroSubtitle    String?  @db.Text
+  updatedAt       DateTime @updatedAt
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String?
+  details   String?  @db.Text
+  createdAt DateTime @default(now())
+}

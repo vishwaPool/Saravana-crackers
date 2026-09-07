@@ -1,0 +1,2 @@
+import{useEffect,useState}from"react";import{api}from"../../api";
+export default function Dashboard(){const[d,setD]=useState(null);useEffect(()=>{api("/admin/dashboard").then(setD)},[]);if(!d)return "Loading...";return <><h1>Dashboard</h1><div className="stats">{Object.entries({Revenue:`₹${d.todayRevenue}`,Orders:d.todayOrders,New:d.newOrders,Products:d.productCount,LowStock:d.lowStock,Customers:d.customers}).map(([k,v])=><div className="stat" key={k}><span>{k}</span><b>{v}</b></div>)}</div></>}

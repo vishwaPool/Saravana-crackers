@@ -1,0 +1,3 @@
+import{useEffect,useState}from"react";import{api}from"../../api";
+const S=["NEW","CONFIRMED","PACKING","READY","OUT_FOR_DELIVERY","DELIVERED","CANCELLED"];
+export default function OrdersAdmin(){const[a,setA]=useState([]);const load=()=>api("/admin/orders").then(setA);useEffect(()=>{load()},[]);return <><h1>Orders</h1>{a.map(o=><div className="order" key={o.id}><b>{o.orderNumber}</b> · {o.customer.name} · ₹{o.total}<select value={o.status} onChange={async e=>{await api(`/admin/orders/${o.id}/status`,{method:"PUT",body:JSON.stringify({status:e.target.value})});load()}}>{S.map(s=><option key={s}>{s}</option>)}</select></div>)}</>}
