@@ -2,9 +2,11 @@ import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { slugify } from "../lib/helpers.js";
 import { requireAuth } from "../middleware/auth.js";
+import posRoutes from "./adminPos.js";
 
 const router = Router();
 router.use(requireAuth);
+router.use(posRoutes);
 
 const audit = (userId, action, entity, entityId, details = {}) =>
   prisma.auditLog.create({
@@ -87,6 +89,7 @@ router.post("/products", async (req, res) => {
     const p = await tx.product.create({
       data: {
         sku: data.sku,
+        barcode: data.barcode || null,
         name: data.name,
         slug: slugify(data.name),
         categoryId: Number(data.categoryId),
@@ -114,6 +117,19 @@ router.post("/products", async (req, res) => {
           reference: "OPENING"
         }
       });
+      await tx.stockMovement.create({
+        data: {
+          productId: p.id,
+          type: "OPENING_STOCK",
+          quantity: p.stock,
+          previousStock: 0,
+          newStock: p.stock,
+          referenceType: "PRODUCT",
+          referenceId: String(p.id),
+          remarks: "Opening stock",
+          createdById: req.user.id
+        }
+      });
     }
 
     return p;
@@ -137,6 +153,7 @@ router.put("/products/:id", async (req, res) => {
       where: { id },
       data: {
         sku: data.sku,
+        barcode: data.barcode || null,
         name: data.name,
         slug: slugify(data.name),
         categoryId: Number(data.categoryId),
@@ -162,6 +179,19 @@ router.put("/products/:id", async (req, res) => {
           type: "ADJUSTMENT",
           quantity: delta,
           reference: "ADMIN_EDIT"
+        }
+      });
+      await tx.stockMovement.create({
+        data: {
+          productId: id,
+          type: "ADJUSTMENT",
+          quantity: delta,
+          previousStock: current.stock,
+          newStock,
+          referenceType: "PRODUCT",
+          referenceId: String(id),
+          remarks: "Admin product edit",
+          createdById: req.user.id
         }
       });
     }
@@ -321,6 +351,19 @@ router.post("/purchases", async (req, res) => {
           type: "PURCHASE",
           quantity: Number(item.quantity),
           reference: number
+        }
+      });
+      const updated = await tx.product.findUnique({ where: { id: Number(item.productId) }, select: { stock: true } });
+      await tx.stockMovement.create({
+        data: {
+          productId: Number(item.productId),
+          type: "PURCHASE",
+          quantity: Number(item.quantity),
+          previousStock: updated.stock - Number(item.quantity),
+          newStock: updated.stock,
+          referenceType: "PURCHASE",
+          referenceId: number,
+          createdById: req.user.id
         }
       });
     }

@@ -10,6 +10,7 @@ datasource db {
 enum UserRole {
   SUPER_ADMIN
   ADMIN
+  CASHIER
   ORDER_MANAGER
   INVENTORY_MANAGER
 }
@@ -33,6 +34,34 @@ enum StockTxnType {
   DAMAGE
 }
 
+enum SaleStatus {
+  COMPLETED
+  VOIDED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  CARD
+  CREDIT
+}
+
+enum DiscountType {
+  FIXED
+  PERCENTAGE
+}
+
+enum StockMovementType {
+  OPENING_STOCK
+  PURCHASE
+  SALE
+  SALE_RETURN
+  VOID
+  ADJUSTMENT
+  DAMAGE
+}
+
 enum OfferType {
   PERCENTAGE
   FIXED
@@ -48,6 +77,11 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   auditLogs    AuditLog[]
+  createdSales Sale[]   @relation("SaleCreatedBy")
+  voidedSales  Sale[]   @relation("SaleVoidedBy")
+  heldSales    HeldSale[]
+  returns      SaleReturn[]
+  stockMoves   StockMovement[]
 }
 
 model Category {
@@ -66,6 +100,7 @@ model Category {
 model Product {
   id             Int      @id @default(autoincrement())
   sku            String   @unique
+  barcode        String?
   name           String
   slug           String   @unique
   description    String?  @db.Text
@@ -86,9 +121,16 @@ model Product {
   updatedAt      DateTime @updatedAt
   orderItems     OrderItem[]
   stockTxns      StockTransaction[]
+  stockMovements StockMovement[]
   purchaseItems  PurchaseItem[]
+  saleItems      SaleItem[]
+  returnItems    ReturnItem[]
 
   @@index([categoryId])
+  @@index([barcode])
+  @@index([name])
+  @@index([brand])
+  @@index([stock])
 }
 
 model Customer {
@@ -103,8 +145,11 @@ model Customer {
   state     String?
   pincode   String?
   orders    Order[]
+  sales     Sale[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([phone])
 }
 
 model Order {
@@ -158,6 +203,143 @@ model StockTransaction {
   reference String?
   note      String?
   createdAt DateTime     @default(now())
+}
+
+model InvoiceSequence {
+  year       Int      @id
+  nextNumber Int      @default(1)
+  updatedAt  DateTime @updatedAt
+}
+
+model Sale {
+  id              Int           @id @default(autoincrement())
+  invoiceNumber   String        @unique
+  requestKey      String?       @unique
+  customerId      Int?
+  customer        Customer?     @relation(fields: [customerId], references: [id])
+  subtotal        Decimal       @db.Decimal(12, 2)
+  discountType    DiscountType  @default(FIXED)
+  discountValue   Decimal       @default(0) @db.Decimal(12, 2)
+  discountAmount  Decimal       @default(0) @db.Decimal(12, 2)
+  gst             Decimal       @default(0) @db.Decimal(12, 2)
+  roundOff        Decimal       @default(0) @db.Decimal(12, 2)
+  grandTotal      Decimal       @db.Decimal(12, 2)
+  paymentMethod   PaymentMethod @default(CASH)
+  status          SaleStatus    @default(COMPLETED)
+  createdById     Int?
+  createdBy       User?         @relation("SaleCreatedBy", fields: [createdById], references: [id])
+  voidedById      Int?
+  voidedBy        User?         @relation("SaleVoidedBy", fields: [voidedById], references: [id])
+  voidReason      String?       @db.Text
+  voidedAt        DateTime?
+  items           SaleItem[]
+  payments        Payment[]
+  returns         SaleReturn[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([invoiceNumber])
+  @@index([customerId])
+  @@index([createdAt])
+  @@index([status])
+}
+
+model SaleItem {
+  id                    Int       @id @default(autoincrement())
+  saleId                Int
+  sale                  Sale      @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId             Int
+  product               Product   @relation(fields: [productId], references: [id])
+  productNameSnapshot   String
+  skuSnapshot           String
+  categoryNameSnapshot  String?
+  purchasePriceSnapshot Decimal   @db.Decimal(12, 2)
+  sellingPrice          Decimal   @db.Decimal(12, 2)
+  quantity              Int
+  discount              Decimal   @default(0) @db.Decimal(12, 2)
+  total                 Decimal   @db.Decimal(12, 2)
+  returnedQuantity      Int       @default(0)
+  returnItems           ReturnItem[]
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+model Payment {
+  id              Int           @id @default(autoincrement())
+  saleId          Int
+  sale            Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  paymentMethod   PaymentMethod
+  amount          Decimal       @db.Decimal(12, 2)
+  referenceNumber String?
+  createdAt       DateTime      @default(now())
+
+  @@index([saleId])
+}
+
+model StockMovement {
+  id            Int               @id @default(autoincrement())
+  productId     Int
+  product       Product           @relation(fields: [productId], references: [id])
+  type          StockMovementType
+  quantity      Int
+  previousStock Int
+  newStock      Int
+  referenceType String?
+  referenceId   String?
+  remarks       String?           @db.Text
+  createdById   Int?
+  createdBy     User?             @relation(fields: [createdById], references: [id])
+  createdAt     DateTime          @default(now())
+
+  @@index([productId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model HeldSale {
+  id              Int      @id @default(autoincrement())
+  referenceNumber String   @unique
+  customerData    Json?
+  items           Json
+  createdById     Int?
+  createdBy       User?    @relation(fields: [createdById], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([createdAt])
+}
+
+model SaleReturn {
+  id           Int          @id @default(autoincrement())
+  saleId       Int
+  sale         Sale         @relation(fields: [saleId], references: [id])
+  returnNumber String       @unique
+  refundAmount Decimal      @db.Decimal(12, 2)
+  createdById  Int?
+  createdBy    User?        @relation(fields: [createdById], references: [id])
+  remarks      String?      @db.Text
+  items        ReturnItem[]
+  createdAt    DateTime     @default(now())
+
+  @@index([saleId])
+  @@index([createdAt])
+}
+
+model ReturnItem {
+  id         Int        @id @default(autoincrement())
+  returnId   Int
+  saleReturn SaleReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  saleItemId Int
+  saleItem   SaleItem   @relation(fields: [saleItemId], references: [id])
+  productId  Int
+  product    Product    @relation(fields: [productId], references: [id])
+  quantity   Int
+  amount     Decimal    @db.Decimal(12, 2)
+
+  @@index([returnId])
+  @@index([saleItemId])
+  @@index([productId])
 }
 
 model Offer {
