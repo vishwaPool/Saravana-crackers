@@ -85,3 +85,12 @@ Create two Vercel projects from this repository:
 - Backend root directory: `server`; build command: `npm run build`; set `DATABASE_URL`, `FRONTEND_URL`, `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `NODE_ENV=production`, and `COOKIE_SECURE=true`.
 
 The backend uses the `server/api/index.js` function entrypoint and Prisma generates during its build. Run migrations from a controlled environment with the production `DATABASE_URL`; do not use `prisma db push` for production schema changes.
+
+For the production deployments, set these variables in Vercel's **Production** environment:
+
+- Frontend: `VITE_API_URL=https://saravana-crackers-api-backend.vercel.app`
+- Backend: `FRONTEND_URL=https://saravana-crackers-frontend.vercel.app`, `NODE_ENV=production`, `COOKIE_SECURE=true`; retain the existing database, JWT, and admin variables above.
+
+Redeploy the affected project after changing environment variables. `FRONTEND_URL` must identify the frontend origin (scheme and hostname, without an API path). Comma-separated origins remain supported; whitespace and trailing slashes are trimmed. Local development at `http://localhost:5173` remains allowed. `CLIENT_URL` is only a legacy fallback when `FRONTEND_URL` is unset.
+
+The global CORS middleware handles preflight requests before authentication and API routes. An allowed preflight returns 204, the requesting origin in `Access-Control-Allow-Origin`, and `Access-Control-Allow-Credentials: true`. If production returns `CORS blocked origin`, check the backend project's environment scope/value and redeploy; changing only the frontend environment cannot update the backend allowlist.

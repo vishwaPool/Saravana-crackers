@@ -14,16 +14,25 @@ const app = express();
 const port = Number(process.env.PORT || 4000);
 const configuredOrigins = (process.env.FRONTEND_URL || process.env.CLIENT_URL || "")
   .split(",")
-  .map(origin => origin.trim())
+  // Browser Origin headers never include a trailing slash.
+  .map(origin => origin.trim().replace(/\/+$/, ""))
   .filter(Boolean);
 const allowedOrigins = new Set(["http://localhost:5173", ...configuredOrigins]);
 
+if (process.env.VERCEL && !process.env.FRONTEND_URL?.trim()) {
+  console.warn("FRONTEND_URL is missing; set the frontend origin in the backend Vercel environment and redeploy.");
+}
+
+// Application-level cors handles OPTIONS before body parsing and API routes.
 app.use(cors({
   origin(origin, callback) {
     if (!origin || allowedOrigins.has(origin)) return callback(null, true);
-    return callback(new Error("CORS origin not allowed"));
+    console.error(`CORS blocked origin: ${origin}`);
+    return callback(new Error(`CORS blocked origin: ${origin}`));
   },
-  credentials: true
+  credentials: true,
+  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
 app.use(express.json({ limit: "1mb" }));
