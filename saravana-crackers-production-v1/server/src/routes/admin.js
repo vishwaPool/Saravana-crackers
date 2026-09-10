@@ -1,3 +1,4 @@
+import { validateRequest } from "../lib/validation.js";
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { slugify } from "../lib/helpers.js";
@@ -6,6 +7,7 @@ import posRoutes from "./adminPos.js";
 
 const router = Router();
 router.use(requireAuth);
+router.use(validateRequest);
 router.use(posRoutes);
 
 const audit = (userId, action, entity, entityId, details = {}) =>
@@ -225,8 +227,12 @@ router.put("/orders/:id/status", async (req, res) => {
   if (!order) return res.status(404).json({ error: "Order not found" });
 
   const status = req.body.status;
+  if (!["NEW","CONFIRMED","PACKING","READY","OUT_FOR_DELIVERY","DELIVERED","CANCELLED"].includes(status)) return res.status(400).json({error:"Select a valid order status."});
+  if (order.status === "CANCELLED" && status !== "CANCELLED") return res.status(400).json({error:"A cancelled order cannot be reopened. Create a new order instead."});
 
   const updated = await prisma.$transaction(async tx => {
+    const changed = await tx.order.updateMany({where:{id,status:order.status,inventoryRestored:order.inventoryRestored},data:{status,inventoryRestored:status==="CANCELLED"?true:order.inventoryRestored}});
+    if(changed.count!==1)throw new Error("This order changed. Refresh before updating its status.");
     if (status === "CANCELLED" && !order.inventoryRestored) {
       for (const item of order.items) {
         await tx.product.update({
@@ -286,16 +292,18 @@ router.post("/offers", async (req, res) => {
 router.get("/customers", async (_req, res) => {
   const customers = await prisma.customer.findMany({
     include: {
-      _count: { select: { orders: true } },
-      orders: { select: { total: true, createdAt: true }, orderBy: { createdAt: "desc" } }
+      _count: { select: { orders: true, sales: true } },
+      orders: { where:{status:{not:"CANCELLED"}}, select: { total: true, createdAt: true }, orderBy: { createdAt: "desc" } },
+      sales: {where:{status:{not:"VOIDED"}},select:{grandTotal:true,returns:{select:{refundAmount:true}}}}
     },
     orderBy: { updatedAt: "desc" }
   });
 
   res.json(customers.map(c => ({
     ...c,
-    totalSpend: c.orders.reduce((sum, o) => sum + Number(o.total), 0),
+    totalSpend: c.orders.reduce((sum, o) => sum + Number(o.total), 0) + c.sales.reduce((sum,sale)=>sum+Number(sale.grandTotal)-sale.returns.reduce((refund,ret)=>refund+Number(ret.refundAmount),0),0),
     lastOrderAt: c.orders[0]?.createdAt || null,
+    sales: undefined,
     orders: undefined
   })));
 });

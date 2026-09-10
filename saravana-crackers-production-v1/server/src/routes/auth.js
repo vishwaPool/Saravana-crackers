@@ -8,6 +8,7 @@ const router = Router();
 
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
+  if (typeof email !== "string" || !email.trim() || typeof password !== "string" || !password) return res.status(400).json({error:"Email and password are required."});
   const user = await prisma.user.findUnique({ where: { email } });
 
   if (!user || !user.active || !(await bcrypt.compare(password, user.passwordHash))) {

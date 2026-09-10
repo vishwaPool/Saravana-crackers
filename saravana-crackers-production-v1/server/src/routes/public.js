@@ -1,8 +1,10 @@
+import { validateRequest } from "../lib/validation.js";
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { orderNo, publicProduct } from "../lib/helpers.js";
 
 const router = Router();
+router.use(validateRequest);
 
 router.get("/settings", async (_req, res) => {
   res.json(await prisma.shopSettings.findUnique({ where: { id: 1 } }) || {});

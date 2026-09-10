@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { prisma } from "../lib/prisma.js";
 
 const PAYMENT_METHODS = new Set(["CASH", "UPI", "CARD", "CREDIT"]);
@@ -65,10 +66,7 @@ async function nextInvoiceNumber(tx) {
   return `SC-${year}-${String(sequence.nextNumber - 1).padStart(6, "0")}`;
 }
 
-async function nextReturnNumber(tx) {
-  const count = await tx.saleReturn.count();
-  return `SCR-${new Date().getFullYear()}-${String(count + 1).padStart(6, "0")}`;
-}
+function nextReturnNumber() { return `SCR-${new Date().getFullYear()}-${randomUUID()}`; }
 
 function preparePayments(inputPayments, fallbackMethod, grandTotal) {
   const payments = Array.isArray(inputPayments)
@@ -111,6 +109,10 @@ function prepareCustomerData(customer = {}) {
     state: customer.state || null,
     pincode: customer.pincode || null
   };
+}
+
+function prepareSaleCustomerName(customer = {}) {
+  return String(customer.name || customer.customerName || "").trim() || null;
 }
 
 export async function searchProducts(query) {
@@ -186,16 +188,17 @@ export async function getProduct(id) {
   };
 }
 
-export async function completeSale(body, user) {
+export async function completeSale(body, user, db = prisma) {
   const existing = body.requestKey
-    ? await prisma.sale.findUnique({ where: { requestKey: String(body.requestKey) }, include: saleInclude() })
+    ? await db.sale.findUnique({ where: { requestKey: String(body.requestKey) }, include: saleInclude() })
     : null;
   if (existing) return serializeSale(existing);
 
   const inputItems = Array.isArray(body.items) ? body.items : [];
   if (!inputItems.length) throw new Error("Add at least one product before completing sale.");
 
-  const sale = await prisma.$transaction(async tx => {
+  let sale;
+  try { sale = await db.$transaction(async tx => {
     const productIds = [...new Set(inputItems.map(item => Number(item.productId)).filter(Boolean))];
     const products = await tx.product.findMany({
       where: { id: { in: productIds }, active: true },
@@ -204,13 +207,15 @@ export async function completeSale(body, user) {
     const productMap = new Map(products.map(product => [product.id, product]));
     if (products.length !== productIds.length) throw new Error("One or more products are unavailable.");
 
+    if (productIds.length !== inputItems.length) throw new Error("Each product must appear only once in a bill.");
     const lines = inputItems.map(item => {
       const product = productMap.get(Number(item.productId));
-      const quantity = toInt(item.quantity);
+      if (!product) throw new Error("One or more products are unavailable.");
+      const quantity = Number(item.quantity);
       const sellingPrice = toMoney(item.sellingPrice ?? product.retailPrice);
       const discount = toMoney(item.discount);
-      if (!product || quantity < 1) throw new Error("Invalid bill item.");
-      if (sellingPrice < 0 || discount < 0) throw new Error("Invalid price or discount.");
+      if (!Number.isSafeInteger(quantity) || quantity < 1) throw new Error("Invalid bill item.");
+      if (!Number.isFinite(sellingPrice) || !Number.isFinite(discount) || sellingPrice < 0 || discount < 0) throw new Error("Invalid price or discount.");
       const gross = toMoney(sellingPrice * quantity);
       if (discount > gross) throw new Error(`${product.name} discount cannot be more than item amount.`);
       return {
@@ -236,6 +241,7 @@ export async function completeSale(body, user) {
     const paymentMethod = payments.length === 1 ? payments[0].paymentMethod : normalizePaymentMethod(body.paymentMethod);
     const invoiceNumber = await nextInvoiceNumber(tx);
     const customerData = prepareCustomerData(body.customer);
+    const customerName = prepareSaleCustomerName(body.customer || {customerName:body.customerName}) || customerData?.name || null;
     const customer = customerData
       ? await tx.customer.upsert({
           where: { phone: customerData.phone },
@@ -252,35 +258,26 @@ export async function completeSale(body, user) {
       if (changed.count !== 1) {
         throw new Error(`Only ${line.product.stock} items available in stock for ${line.product.name}.`);
       }
-      const updated = await tx.product.findUnique({ where: { id: line.product.id }, select: { stock: true } });
-      await tx.stockMovement.create({
-        data: {
-          productId: line.product.id,
-          type: "SALE",
-          quantity: -line.quantity,
-          previousStock: updated.stock + line.quantity,
-          newStock: updated.stock,
-          referenceType: "SALE",
-          referenceId: invoiceNumber,
-          remarks: "POS billing",
-          createdById: user?.id || null
-        }
-      });
-      await tx.stockTransaction.create({
-        data: {
-          productId: line.product.id,
-          type: "SALE",
-          quantity: -line.quantity,
-          reference: invoiceNumber,
-          note: "POS billing"
-        }
-      });
     }
 
+    // Fetch all resulting stock levels once and insert ledgers in batches.
+    const stocks = await tx.product.findMany({where:{id:{in:productIds}},select:{id:true,stock:true}});
+    const stockById = new Map(stocks.map(product => [product.id, product.stock]));
+    await tx.stockMovement.createMany({data:lines.map(line => ({
+      productId:line.product.id, type:"SALE", quantity:-line.quantity,
+      previousStock:stockById.get(line.product.id)+line.quantity,
+      newStock:stockById.get(line.product.id), referenceType:"SALE", referenceId:invoiceNumber,
+      remarks:"POS billing", createdById:user?.id || null
+    }))});
+    await tx.stockTransaction.createMany({data:lines.map(line => ({
+      productId:line.product.id, type:"SALE", quantity:-line.quantity,
+      reference:invoiceNumber, note:"POS billing"
+    }))});
     const created = await tx.sale.create({
       data: {
         invoiceNumber,
         requestKey: body.requestKey ? String(body.requestKey) : null,
+        customerName,
         customerId: customer?.id || null,
         subtotal,
         discountType,
@@ -292,7 +289,7 @@ export async function completeSale(body, user) {
         paymentMethod,
         createdById: user?.id || null,
         items: {
-          create: lines.map(line => ({
+          createMany: { data: lines.map(line => ({
             productId: line.product.id,
             productNameSnapshot: line.product.name,
             skuSnapshot: line.product.sku,
@@ -302,11 +299,11 @@ export async function completeSale(body, user) {
             quantity: line.quantity,
             discount: line.discount,
             total: line.lineTotal
-          }))
+          })) }
         },
-        payments: { create: payments }
+        payments: { createMany: { data: payments } }
       },
-      include: saleInclude()
+      include: { customer: true, items: true, payments: true }
     });
 
     await tx.auditLog.create({
@@ -322,6 +319,14 @@ export async function completeSale(body, user) {
     return created;
   });
 
+  } catch (error) {
+    // A concurrent retry may have committed this exact bill already.
+    if (body.requestKey && ["P2002", "P2028"].includes(error.code)) {
+      const saved = await db.sale.findUnique({where:{requestKey:String(body.requestKey)},include:saleInclude()});
+      if (saved) return serializeSale(saved);
+    }
+    throw error;
+  }
   return serializeSale(sale);
 }
 
@@ -331,6 +336,7 @@ export async function listSales({ search = "", from, to, status } = {}) {
   if (q) {
     where.OR = [
       { invoiceNumber: { contains: q } },
+      { customerName: { contains: q } },
       { customer: { name: { contains: q } } },
       { customer: { phone: { contains: q } } }
     ];
@@ -366,11 +372,15 @@ export async function getSale(identifier) {
   return serializeSale(sale);
 }
 
-export async function voidSale(id, user, reason = "") {
-  const updated = await prisma.$transaction(async tx => {
+export async function voidSale(id, user, reason = "", db = prisma) {
+  const updated = await db.$transaction(async tx => {
     const sale = await tx.sale.findUnique({ where: { id: Number(id) }, include: { items: true } });
     if (!sale) throw new Error("Invoice not found.");
     if (sale.status !== "COMPLETED") throw new Error("Only completed invoices can be voided.");
+    if (!String(reason).trim()) throw new Error("Enter a reason for voiding the invoice.");
+    if (sale.items.some(item => item.returnedQuantity > 0)) throw new Error("An invoice with returned items cannot be voided. Return the remaining items instead.");
+    const locked = await tx.sale.updateMany({where:{id:sale.id,status:"COMPLETED",items:{none:{returnedQuantity:{gt:0}}}},data:{status:"VOIDED"}});
+    if (locked.count !== 1) throw new Error("This invoice changed. Refresh before voiding it.");
 
     for (const item of sale.items) {
       const current = await tx.product.findUnique({ where: { id: item.productId }, select: { stock: true } });
@@ -417,8 +427,8 @@ export async function voidSale(id, user, reason = "") {
   return serializeSale(updated);
 }
 
-export async function createReturn(body, user) {
-  const created = await prisma.$transaction(async tx => {
+export async function createReturn(body, user, db = prisma) {
+  const created = await db.$transaction(async tx => {
     const sale = await tx.sale.findFirst({
       where: body.saleId ? { id: Number(body.saleId) } : { invoiceNumber: String(body.invoiceNumber || "") },
       include: { items: true }
@@ -427,18 +437,27 @@ export async function createReturn(body, user) {
     if (sale.status === "VOIDED") throw new Error("Voided invoices cannot be returned.");
 
     const byId = new Map(sale.items.map(item => [item.id, item]));
-    const returnLines = (Array.isArray(body.items) ? body.items : []).map(input => {
+    const requested = Array.isArray(body.items) ? body.items : [];
+    if (new Set(requested.map(item=>Number(item.saleItemId))).size !== requested.length) throw new Error("Each returned item must appear only once.");
+    const returnLines = requested.map(input => {
       const saleItem = byId.get(Number(input.saleItemId));
-      const quantity = toInt(input.quantity);
-      if (!saleItem || quantity < 1) throw new Error("Invalid return item.");
+      const quantity = Number(input.quantity);
+      if (!saleItem || !Number.isSafeInteger(quantity) || quantity < 1) throw new Error("Invalid return item.");
       const available = saleItem.quantity - saleItem.returnedQuantity;
       if (quantity > available) throw new Error(`Only ${available} can be returned for ${saleItem.productNameSnapshot}.`);
-      const amount = toMoney((Number(saleItem.total) / saleItem.quantity) * quantity);
+      const netTotal = Number(sale.subtotal) > 0 ? Number(saleItem.total) * Number(sale.grandTotal) / Number(sale.subtotal) : 0;
+      const amount = toMoney(netTotal * (saleItem.returnedQuantity + quantity) / saleItem.quantity) - toMoney(netTotal * saleItem.returnedQuantity / saleItem.quantity);
       return { saleItem, quantity, amount };
     });
     if (!returnLines.length) throw new Error("Select at least one item to return.");
 
-    const returnNumber = await nextReturnNumber(tx);
+    const locked = await tx.sale.updateMany({where:{id:sale.id,status:"COMPLETED"},data:{updatedAt:new Date()}});
+    if (locked.count !== 1) throw new Error("This invoice is no longer available for returns.");
+    for (const line of returnLines) {
+      const changed = await tx.saleItem.updateMany({where:{id:line.saleItem.id,returnedQuantity:line.saleItem.returnedQuantity},data:{returnedQuantity:{increment:line.quantity}}});
+      if (changed.count !== 1) throw new Error("Returned quantities changed. Refresh the invoice before retrying.");
+    }
+    const returnNumber = nextReturnNumber();
     const refundAmount = toMoney(returnLines.reduce((sum, line) => sum + line.amount, 0));
     const ret = await tx.saleReturn.create({
       data: {
@@ -462,10 +481,7 @@ export async function createReturn(body, user) {
     for (const line of returnLines) {
       const current = await tx.product.findUnique({ where: { id: line.saleItem.productId }, select: { stock: true } });
       await tx.product.update({ where: { id: line.saleItem.productId }, data: { stock: { increment: line.quantity } } });
-      await tx.saleItem.update({
-        where: { id: line.saleItem.id },
-        data: { returnedQuantity: { increment: line.quantity } }
-      });
+
       await tx.stockMovement.create({
         data: {
           productId: line.saleItem.productId,
@@ -491,6 +507,8 @@ export async function createReturn(body, user) {
       }
     });
 
+    const remaining = await tx.saleItem.findMany({where:{saleId:sale.id},select:{quantity:true,returnedQuantity:true}});
+    if (remaining.every(item=>item.returnedQuantity===item.quantity)) await tx.sale.update({where:{id:sale.id},data:{status:"REFUNDED"}});
     return ret;
   });
 
@@ -501,19 +519,19 @@ export async function createReturn(body, user) {
   };
 }
 
-export async function receiveStock(body, user) {
+export async function receiveStock(body, user, db = prisma) {
   const quantity = toInt(body.quantity);
   const productId = Number(body.productId);
   if (!productId || quantity < 1) throw new Error("Select a product and enter received quantity.");
 
-  return prisma.$transaction(async tx => {
+  return db.$transaction(async tx => {
     const product = await tx.product.findUnique({ where: { id: productId } });
     if (!product) throw new Error("Product not found.");
     const updated = await tx.product.update({
       where: { id: productId },
       data: {
         stock: { increment: quantity },
-        ...(body.purchasePrice ? { purchasePrice: toMoney(body.purchasePrice) } : {})
+        ...(body.purchasePrice !== undefined && body.purchasePrice !== "" ? { purchasePrice: toMoney(body.purchasePrice) } : {})
       }
     });
     const reference = body.purchaseInvoiceNumber || `PUR-${Date.now()}`;
@@ -522,7 +540,7 @@ export async function receiveStock(body, user) {
         productId,
         type: "PURCHASE",
         quantity,
-        previousStock: product.stock,
+        previousStock: updated.stock - quantity,
         newStock: updated.stock,
         referenceType: "PURCHASE",
         referenceId: reference,
@@ -533,16 +551,16 @@ export async function receiveStock(body, user) {
     await tx.stockTransaction.create({
       data: { productId, type: "PURCHASE", quantity, reference, note: body.remarks || null }
     });
-    return { productId, previousStock: product.stock, newStock: updated.stock };
+    return { productId, previousStock: updated.stock - quantity, newStock: updated.stock };
   });
 }
 
-export async function adjustStock(body, user) {
+export async function adjustStock(body, user, db = prisma) {
   const productId = Number(body.productId);
   const physicalStock = toInt(body.physicalStock);
   if (!productId || physicalStock < 0) throw new Error("Select a product and enter valid physical stock.");
 
-  return prisma.$transaction(async tx => {
+  return db.$transaction(async tx => {
     const product = await tx.product.findUnique({ where: { id: productId } });
     if (!product) throw new Error("Product not found.");
     const delta = physicalStock - product.stock;
@@ -574,44 +592,54 @@ export async function adjustStock(body, user) {
   });
 }
 
-export async function dashboardSummary() {
+function netItemRevenue(item) {
+  const subtotal=Number(item.sale.subtotal);
+  const billDiscountRatio=subtotal>0?Number(item.sale.discountAmount)/subtotal:0;
+  return Number(item.total)*(1-billDiscountRatio)*(item.quantity-item.returnedQuantity)/item.quantity;
+}
+export async function dashboardSummary(db = prisma) {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
   const end = new Date(start);
   end.setDate(end.getDate() + 1);
 
   const [sales, payments, products, customers, orderCount, lowStockProducts, saleItems] = await Promise.all([
-    prisma.sale.findMany({ where: { createdAt: { gte: start, lt: end }, status: { not: "VOIDED" } }, include: { items: true } }),
-    prisma.payment.findMany({ where: { sale: { createdAt: { gte: start, lt: end }, status: { not: "VOIDED" } } } }),
-    prisma.product.findMany({ where: { active: true }, select: { stock: true, minStock: true, purchasePrice: true } }),
-    prisma.customer.count(),
-    prisma.order.count({ where: { createdAt: { gte: start } } }),
-    prisma.product.findMany({
+    db.sale.findMany({ where: { createdAt: { gte: start, lt: end }, status: { not: "VOIDED" } }, include: { items: true, returns: {select:{refundAmount:true}} } }),
+    db.payment.findMany({ where: { sale: { createdAt: { gte: start, lt: end }, status: { not: "VOIDED" } } } }),
+    db.product.findMany({ where: { active: true }, select: { stock: true, minStock: true, purchasePrice: true } }),
+    db.customer.count(),
+    db.order.count({ where: { createdAt: { gte: start } } }),
+    db.product.findMany({
       where: { active: true },
       select: { id: true, sku: true, name: true, stock: true, minStock: true },
       orderBy: { stock: "asc" }
     }),
-    prisma.saleItem.findMany({
+    db.saleItem.findMany({
       where: { sale: { createdAt: { gte: start, lt: end }, status: { not: "VOIDED" } } },
-      select: { productId: true, productNameSnapshot: true, quantity: true, total: true }
+      select: { productId: true, productNameSnapshot: true, quantity: true, returnedQuantity: true, total: true }
     })
   ]);
 
   const byMethod = { CASH: 0, UPI: 0, CARD: 0, CREDIT: 0 };
-  for (const payment of payments) byMethod[payment.paymentMethod] += Number(payment.amount);
+  const refunds=new Map(sales.map(sale=>[sale.id,{total:Number(sale.grandTotal),refund:sale.returns.reduce((sum,ret)=>sum+Number(ret.refundAmount),0)}]));
+  for (const payment of payments) {
+    const bill=refunds.get(payment.saleId);
+    const ratio=bill?.total>0?Math.max(0,bill.total-bill.refund)/bill.total:1;
+    byMethod[payment.paymentMethod] += Number(payment.amount)*ratio;
+  }
 
   const topMap = new Map();
   for (const item of saleItems) {
     const current = topMap.get(item.productId) || { productId: item.productId, name: item.productNameSnapshot, quantity: 0, amount: 0 };
-    current.quantity += item.quantity;
-    current.amount += Number(item.total);
+    current.quantity += item.quantity-item.returnedQuantity;
+    current.amount += Number(item.total)*(item.quantity-item.returnedQuantity)/item.quantity;
     topMap.set(item.productId, current);
   }
 
   return {
-    todaySales: toMoney(sales.reduce((sum, sale) => sum + Number(sale.grandTotal), 0)),
+    todaySales: toMoney(sales.reduce((sum, sale) => sum + Number(sale.grandTotal)-sale.returns.reduce((refund,ret)=>refund+Number(ret.refundAmount),0), 0)),
     todayBills: sales.length,
-    todayItemsSold: sales.reduce((sum, sale) => sum + sale.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0),
+    todayItemsSold: sales.reduce((sum, sale) => sum + sale.items.reduce((itemSum, item) => itemSum + item.quantity-item.returnedQuantity, 0), 0),
     cashSales: toMoney(byMethod.CASH),
     upiSales: toMoney(byMethod.UPI),
     cardSales: toMoney(byMethod.CARD),
@@ -630,17 +658,18 @@ export async function dailyReport() {
   return dashboardSummary();
 }
 
-export async function profitReport() {
+export async function profitReport(db = prisma) {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
-  const items = await prisma.saleItem.findMany({
-    where: { sale: { createdAt: { gte: start }, status: { not: "VOIDED" } } }
+  const items = await db.saleItem.findMany({
+    where: { sale: { createdAt: { gte: start }, status: { not: "VOIDED" } } },
+    include: {sale:{select:{subtotal:true,discountAmount:true}}}
   });
   const productMap = new Map();
   for (const item of items) {
     const purchase = Number(item.purchasePriceSnapshot);
-    const sell = Number(item.sellingPrice);
-    const profit = toMoney((sell - purchase) * item.quantity - Number(item.discount));
+    const revenue = netItemRevenue(item);
+    const profit = toMoney(revenue - purchase * (item.quantity-item.returnedQuantity));
     const current = productMap.get(item.productId) || {
       productId: item.productId,
       name: item.productNameSnapshot,
@@ -648,8 +677,8 @@ export async function profitReport() {
       sales: 0,
       profit: 0
     };
-    current.quantity += item.quantity;
-    current.sales = toMoney(current.sales + Number(item.total));
+    current.quantity += item.quantity-item.returnedQuantity;
+    current.sales = toMoney(current.sales + revenue);
     current.profit = toMoney(current.profit + profit);
     productMap.set(item.productId, current);
   }
@@ -660,16 +689,17 @@ export async function profitReport() {
   };
 }
 
-export async function categoryReport() {
+export async function categoryReport(db = prisma) {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
-  const items = await prisma.saleItem.findMany({
-    where: { sale: { createdAt: { gte: start }, status: { not: "VOIDED" } } }
+  const items = await db.saleItem.findMany({
+    where: { sale: { createdAt: { gte: start }, status: { not: "VOIDED" } } },
+    include: {sale:{select:{subtotal:true,discountAmount:true}}}
   });
   const map = new Map();
   for (const item of items) {
     const key = item.categoryNameSnapshot || "Uncategorised";
-    map.set(key, toMoney((map.get(key) || 0) + Number(item.total)));
+    map.set(key, toMoney((map.get(key) || 0) + netItemRevenue(item)));
   }
   return [...map.entries()].map(([category, total]) => ({ category, total })).sort((a, b) => b.total - a.total);
 }

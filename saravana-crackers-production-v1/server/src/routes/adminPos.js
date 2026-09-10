@@ -1,3 +1,4 @@
+import { apiError } from "../lib/apiError.js";
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { slugify } from "../lib/helpers.js";
@@ -29,8 +30,7 @@ const wrap = fn => async (req, res, next) => {
   try {
     await fn(req, res, next);
   } catch (error) {
-    const message = error.message || "Request failed";
-    const status = /not found/i.test(message) ? 404 : /auth|permission/i.test(message) ? 403 : 400;
+    const {message,status} = apiError(error);
     res.status(status).json({ error: message });
   }
 };
@@ -90,7 +90,28 @@ router.get("/products/:id", wrap(async (req, res) => {
 }));
 
 router.post("/sales", wrap(async (req, res) => {
-  res.status(201).json(await completeSale(req.body, req.user));
+  try {
+    res.status(201).json(await completeSale(req.body, req.user));
+  } catch (error) {
+    console.error("POS complete sale failed", {
+      code: error.code,
+      message: error.message,
+      requestKey: req.body?.requestKey || null,
+      customerName: req.body?.customerName || req.body?.customer?.name || null,
+      paymentMethod: req.body?.paymentMethod || null,
+      discountType: req.body?.discountType || null,
+      discountValue: req.body?.discountValue ?? null,
+      gst: req.body?.gst ?? null,
+      items: Array.isArray(req.body?.items) ? req.body.items.map(item => ({
+        productId: item.productId,
+        sku: item.sku,
+        quantity: item.quantity,
+        sellingPrice: item.sellingPrice,
+        discount: item.discount
+      })) : []
+    });
+    throw error;
+  }
 }));
 
 router.get("/sales", wrap(async (req, res) => {
@@ -161,6 +182,7 @@ router.get("/reports/category-sales", wrap(async (_req, res) => {
 
 router.post("/products/import", requireRole(inventoryRoles), wrap(async (req, res) => {
   const rows = parseCsv(req.body.csv);
+  if (!rows.length) return res.status(400).json({error:"Paste a CSV header and at least one product row."});
   const categories = await prisma.category.findMany();
   const categoryByName = new Map(categories.map(category => [category.name.toLowerCase(), category]));
   const valid = [];
@@ -175,7 +197,7 @@ router.post("/products/import", requireRole(inventoryRoles), wrap(async (req, re
     const mrp = Number(data.MRP);
     const openingStock = Number(data.OpeningStock);
     const minimumStock = Number(data.MinimumStock);
-    if (missing.length || [purchasePrice, sellingPrice, mrp, openingStock, minimumStock].some(n => Number.isNaN(n))) {
+    if (missing.length || [purchasePrice, sellingPrice, mrp, openingStock, minimumStock].some(n => !Number.isFinite(n) || n < 0) || !Number.isInteger(openingStock) || !Number.isInteger(minimumStock)) {
       errors.push({ line: row.line, error: `Invalid row. Missing/invalid: ${missing.join(", ") || "numeric values"}` });
       continue;
     }
@@ -186,6 +208,7 @@ router.post("/products/import", requireRole(inventoryRoles), wrap(async (req, re
     return res.json({ validProducts: valid.length, errors });
   }
 
+  if (errors.length) return res.status(400).json({error:"Correct all CSV errors before importing.",errors});
   const result = await prisma.$transaction(async tx => {
     let imported = 0;
     for (const item of valid) {
@@ -195,6 +218,7 @@ router.post("/products/import", requireRole(inventoryRoles), wrap(async (req, re
         category = await tx.category.create({ data: { name: categoryName, slug: slugify(categoryName), active: true } });
         categoryByName.set(category.name.toLowerCase(), category);
       }
+      const existing = await tx.product.findUnique({where:{sku:String(item.data.ProductCode).trim()},select:{id:true}});
       const product = await tx.product.upsert({
         where: { sku: String(item.data.ProductCode).trim() },
         update: {
@@ -223,7 +247,7 @@ router.post("/products/import", requireRole(inventoryRoles), wrap(async (req, re
           active: true
         }
       });
-      if (item.openingStock > 0) {
+      if (!existing && item.openingStock > 0) {
         await tx.stockMovement.create({
           data: {
             productId: product.id,

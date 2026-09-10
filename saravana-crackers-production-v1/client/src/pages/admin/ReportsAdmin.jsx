@@ -14,10 +14,10 @@ export default function ReportsAdmin(){
       api("/admin/reports/daily"),
       api("/admin/reports/category-sales"),
       api("/admin/reports/profit").catch(e=>({error:e.message}))
-    ]).then(([d,c,p])=>{setDaily(d);setCategory(c);p.error?setError(p.error):setProfit(p)});
+    ]).then(([d,c,p])=>{setDaily(d);setCategory(c);p.error?setError(p.error):setProfit(p)}).catch(e=>setError(e.message));
   },[]);
 
-  if(!daily)return "Loading...";
+  if(!daily)return error?<div role="alert">{error}<button onClick={()=>window.location.reload()}>Retry</button></div>:"Loading...";
 
   return <div>
     <h1>Reports</h1>

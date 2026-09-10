@@ -1,0 +1,270 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 720" width="100%" height="100%">
+  <defs>
+    <!-- Background Festive Rich Gradients -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a002c"/>
+      <stop offset="35%" stop-color="#3b0944"/>
+      <stop offset="70%" stop-color="#7a123a"/>
+      <stop offset="100%" stop-color="#2a041b"/>
+    </linearGradient>
+
+    <!-- Warm Festive Radial Backdrop Glow -->
+    <radialGradient id="centerGlow" cx="40%" cy="45%" r="60%">
+      <stop offset="0%" stop-color="#ff9900" stop-opacity="0.35"/>
+      <stop offset="45%" stop-color="#d9381e" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#1a002c" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Metallic Gold Gradient -->
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fceda2"/>
+      <stop offset="30%" stop-color="#d4af37"/>
+      <stop offset="70%" stop-color="#aa7c11"/>
+      <stop offset="100%" stop-color="#ffd966"/>
+    </linearGradient>
+
+    <!-- Button Gradient -->
+    <linearGradient id="btnGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#d4af37"/>
+      <stop offset="50%" stop-color="#f3e5ab"/>
+      <stop offset="100%" stop-color="#aa7c11"/>
+    </linearGradient>
+
+    <!-- Diya Oil Lamp Flame -->
+    <radialGradient id="flameGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="25%" stop-color="#ffe600"/>
+      <stop offset="60%" stop-color="#ff5d00" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#ff0000" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Sparkler Burst Radial -->
+    <radialGradient id="sparkGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="30%" stop-color="#ffdf79" stop-opacity="0.9"/>
+      <stop offset="70%" stop-color="#ff7b00" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#ff4800" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Traditional Pattern Overlay -->
+    <pattern id="marigoldPattern" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="20" cy="20" r="1.5" fill="#fceda2" opacity="0.15"/>
+    </pattern>
+  </defs>
+
+  <style>
+    .brand-title { font-family: 'Cinzel', 'Playfair Display', 'Georgia', serif; font-weight: 800; font-size: 74px; letter-spacing: 2px; }
+    .brand-sub { font-family: 'Montserrat', 'Segoe UI', sans-serif; font-weight: 700; font-size: 20px; letter-spacing: 6.5px; text-transform: uppercase; }
+    .hero-tagline { font-family: 'Cinzel', 'Georgia', serif; font-weight: 600; font-size: 32px; letter-spacing: 1.5px; fill: #ffffff; }
+    .body-desc { font-family: 'Montserrat', 'Segoe UI', sans-serif; font-size: 16.5px; fill: #f3dfca; font-weight: 400; line-height: 1.6; }
+    .badge-title { font-family: 'Montserrat', 'Segoe UI', sans-serif; font-size: 14.5px; font-weight: 700; fill: #fceda2; letter-spacing: 0.8px; }
+    .badge-sub { font-family: 'Montserrat', 'Segoe UI', sans-serif; font-size: 12.5px; font-weight: 400; fill: #e0d0cc; }
+    .btn-text { font-family: 'Montserrat', 'Segoe UI', sans-serif; font-size: 16px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; fill: #26051f; }
+    .url-text { font-family: 'Montserrat', 'Segoe UI', sans-serif; font-size: 18px; font-weight: 600; letter-spacing: 3px; fill: #fceda2; }
+  </style>
+
+  <!-- 1. BASE BACKGROUND -->
+  <rect width="1920" height="720" fill="url(#bgGrad)"/>
+  <rect width="1920" height="720" fill="url(#centerGlow)"/>
+  <rect width="1920" height="720" fill="url(#marigoldPattern)"/>
+
+  <!-- TRADITIONAL MARIGOLD FESTIVE TORAN (TOP BORDER) -->
+  <g id="toran" stroke-width="1">
+    <path d="M0,20 Q480,45 960,20 Q1440,45 1920,20" fill="none" stroke="#d4af37" stroke-dasharray="4,4"/>
+    <path d="M0,0 Q80,75 160,0 M160,0 Q240,75 320,0 M320,0 Q400,75 480,0 M480,0 Q560,75 640,0 M640,0 Q720,75 800,0 M800,0 Q880,75 960,0" fill="none" stroke="#e67e00" stroke-width="3"/>
+    <path d="M960,0 Q1040,75 1120,0 M1120,0 Q1200,75 1280,0 M1280,0 Q1360,75 1440,0 M1440,0 Q1520,75 1600,0 M1600,0 Q1680,75 1760,0 M1760,0 Q1840,75 1920,0" fill="none" stroke="#e67e00" stroke-width="3"/>
+
+    <g fill="#ff9900">
+      <circle cx="80" cy="45" r="9"/><circle cx="240" cy="45" r="9"/><circle cx="400" cy="45" r="9"/><circle cx="560" cy="45" r="9"/><circle cx="720" cy="45" r="9"/><circle cx="880" cy="45" r="9"/>
+      <circle cx="1040" cy="45" r="9"/><circle cx="1200" cy="45" r="9"/><circle cx="1360" cy="45" r="9"/><circle cx="1520" cy="45" r="9"/><circle cx="1680" cy="45" r="9"/><circle cx="1840" cy="45" r="9"/>
+    </g>
+    <g fill="#ffcc00">
+      <circle cx="80" cy="45" r="5"/><circle cx="240" cy="45" r="5"/><circle cx="400" cy="45" r="5"/><circle cx="560" cy="45" r="5"/><circle cx="720" cy="45" r="5"/><circle cx="880" cy="45" r="5"/>
+      <circle cx="1040" cy="45" r="5"/><circle cx="1200" cy="45" r="5"/><circle cx="1360" cy="45" r="5"/><circle cx="1520" cy="45" r="5"/><circle cx="1680" cy="45" r="5"/><circle cx="1840" cy="45" r="5"/>
+    </g>
+  </g>
+
+  <!-- 2. TRADITIONAL MANDALA MOTIF (LEFT BACKGROUND ORNAMENT) -->
+  <g transform="translate(300, 360)" stroke="url(#goldGrad)" stroke-width="1.5" fill="none" opacity="0.25">
+    <circle r="260" stroke-dasharray="6,6"/>
+    <circle r="210"/>
+    <circle r="160"/>
+    <circle r="80"/>
+    <path d="M0,-210 C30,-140 30,-140 0,-80 C-30,-140 -30,-140 0,-210 Z"/>
+    <path d="M0,210 C30,140 30,140 0,80 C-30,140 -30,140 0,210 Z"/>
+    <path d="M-210,0 C-140,30 -140,30 -80,0 C-140,-30 -140,-30 -210,0 Z"/>
+    <path d="M210,0 C140,30 140,30 80,0 C140,-30 140,-30 210,0 Z"/>
+    <path d="M-148,-148 C-80,-110 -80,-110 -56,-56 C-110,-80 -110,-80 -148,-148 Z"/>
+    <path d="M148,148 C80,110 80,110 56,56 C110,80 110,80 148,148 Z"/>
+    <path d="M148,-148 C80,-110 80,-110 56,-56 C110,-80 110,-80 148,-148 Z"/>
+    <path d="M-148,148 C-80,110 -80,110 -56,56 C-110,80 -110,80 -148,148 Z"/>
+  </g>
+
+  <!-- 3. CELEBRATION ARTWORK / FLOWER POT FOUNTAIN & FIREWORKS (MOVED TO LEFT) -->
+  <g transform="translate(340, 310)">
+    <!-- Central Anaar (Flowerpot Fountain) Cone -->
+    <polygon points="-40,240 40,240 25,140 -25,140" fill="#a82323" stroke="url(#goldGrad)" stroke-width="2"/>
+    <ellipse cx="0" cy="140" rx="25" ry="8" fill="#d4af37"/>
+    <polygon points="-30,225 30,225 28,210 -28,210" fill="#1b5e20"/>
+    <polygon points="-35,185 35,185 32,170 -32,170" fill="#e65100"/>
+
+    <!-- Fountain Pyro Flare -->
+    <path d="M0,135 L-120,-120 M0,135 L-70,-150 M0,135 L-20,-170 M0,135 L30,-165 M0,135 L80,-140 M0,135 L125,-105" stroke="#ffeaa7" stroke-width="2" opacity="0.85" stroke-dasharray="8,5"/>
+    <path d="M0,135 L-160,-50 M0,135 L-150,20 M0,135 L150,-40 M0,135 L160,25" stroke="#ffb834" stroke-width="1.5" opacity="0.7"/>
+
+    <!-- Fountain Base Diya Base -->
+    <ellipse cx="0" cy="245" rx="55" ry="12" fill="#691010"/>
+
+    <!-- Aerial Crackers Burst Top -->
+    <g transform="translate(140, -130)">
+      <circle cx="0" cy="0" r="110" fill="url(#sparkGlow)"/>
+      <g stroke="#fff2b2" stroke-width="2">
+        <line x1="0" y1="-80" x2="0" y2="80"/>
+        <line x1="-80" y1="0" x2="80" y2="0"/>
+        <line x1="-56" y1="-56" x2="56" y2="56"/>
+        <line x1="56" y1="-56" x2="-56" y2="56"/>
+        <line x1="-28" y1="-70" x2="28" y2="70"/>
+        <line x1="28" y1="-70" x2="-28" y2="70"/>
+        <line x1="-70" y1="-28" x2="70" y2="28"/>
+        <line x1="70" y1="-28" x2="-70" y2="28"/>
+      </g>
+    </g>
+
+    <g transform="translate(-120, -80)">
+      <circle cx="0" cy="0" r="70" fill="url(#sparkGlow)"/>
+      <g stroke="#ffd280" stroke-width="1.5">
+        <line x1="0" y1="-55" x2="0" y2="55"/>
+        <line x1="-55" y1="0" x2="55" y2="0"/>
+        <line x1="-38" y1="-38" x2="38" y2="38"/>
+        <line x1="38" y1="-38" x2="-38" y2="38"/>
+      </g>
+    </g>
+
+    <!-- Traditional Chakkar (Ground Spinner) Base -->
+    <g transform="translate(240, 240)">
+      <circle cx="0" cy="0" r="40" fill="url(#sparkGlow)"/>
+      <circle cx="0" cy="0" r="28" fill="none" stroke="#fceda2" stroke-width="3" stroke-dasharray="14,6"/>
+      <circle cx="0" cy="0" r="14" fill="#c41c1c"/>
+      <circle cx="0" cy="0" r="4" fill="#ffffff"/>
+      <line x1="-48" y1="0" x2="48" y2="0" stroke="#ffb834" stroke-width="2"/>
+      <line x1="0" y1="-48" x2="0" y2="48" stroke="#ffb834" stroke-width="2"/>
+    </g>
+  </g>
+
+  <!-- 4. HERO BRANDING & EDITORIAL CONTENT (MOVED TO RIGHT) -->
+  <g transform="translate(850, 160)">
+    <!-- Top Monogram Badge & Subtitle -->
+    <g transform="translate(0, 0)">
+      <rect x="0" y="0" width="36" height="3" fill="url(#goldGrad)"/>
+      <text x="50" y="7" class="brand-sub" fill="url(#goldGrad)">ORIGINAL SIVAKASI FESTIVE COLLECTION</text>
+    </g>
+
+    <!-- Main Typography Header -->
+    <text x="0" y="90" class="brand-title">
+      <tspan fill="#ffffff">SARAVANA </tspan>
+      <tspan fill="url(#goldGrad)">CRACKERS</tspan>
+    </text>
+
+    <!-- Hero Tagline -->
+    <text x="0" y="150" class="hero-tagline">
+      Light Up Your Celebrations with Supreme Joy &amp; Safety
+    </text>
+
+    <!-- Brand Description -->
+    <text x="0" y="195" class="body-desc">
+      Spark a brighter Diwali with Tamil Nadu's finest eco-friendly, premium green fireworks.
+    </text>
+    <text x="0" y="222" class="body-desc">
+      Direct factory rates, guaranteed certified safety, and joyous sparkles for every family doorstep.
+    </text>
+
+    <!-- 3 Value Propositions / Badges -->
+    <g transform="translate(0, 275)">
+      <!-- Badge 1: 100% Genuine Sivakasi -->
+      <g transform="translate(0, 0)">
+        <rect x="0" y="0" width="54" height="54" rx="27" fill="#35062a" stroke="url(#goldGrad)" stroke-width="2"/>
+        <polygon points="27,14 31,23 41,24 33,31 36,40 27,35 18,40 21,31 13,24 23,23" fill="#fceda2"/>
+        <text x="70" y="23" class="badge-title">100% Sivakasi Genuine</text>
+        <text x="70" y="44" class="badge-sub">Direct factory price &amp; premium craft</text>
+      </g>
+
+      <!-- Badge 2: Certified Green Crackers -->
+      <g transform="translate(325, 0)">
+        <rect x="0" y="0" width="54" height="54" rx="27" fill="#35062a" stroke="url(#goldGrad)" stroke-width="2"/>
+        <path d="M27,15 C19,21 17,31 27,39 C37,31 35,21 27,15 Z" fill="#70c446"/>
+        <path d="M27,18 L27,37" stroke="#255a0c" stroke-width="2"/>
+        <text x="70" y="23" class="badge-title">Certified Green Crackers</text>
+        <text x="70" y="44" class="badge-sub">Low smoke, eco-safe celebration</text>
+      </g>
+
+      <!-- Badge 3: Doorstep Delivery -->
+      <g transform="translate(660, 0)">
+        <rect x="0" y="0" width="54" height="54" rx="27" fill="#35062a" stroke="url(#goldGrad)" stroke-width="2"/>
+        <path d="M19,19 L35,19 L37,28 C37,34 27,39 27,39 C27,39 17,34 17,28 Z" fill="#fceda2"/>
+        <text x="70" y="23" class="badge-title">Safe Home Delivery</text>
+        <text x="70" y="44" class="badge-sub">Intact packaging &amp; rapid transport</text>
+      </g>
+    </g>
+
+    <!-- Call to Action & Website Dock -->
+    <g transform="translate(0, 390)">
+      <g style="cursor: pointer;">
+        <rect x="0" y="0" width="220" height="52" rx="26" fill="url(#btnGrad)"/>
+        <text x="110" y="32" class="btn-text" text-anchor="middle">BOOK ORDER</text>
+      </g>
+
+      <g transform="translate(250, 0)">
+        <rect x="0" y="0" width="450" height="52" rx="26" fill="#1b031b" stroke="url(#goldGrad)" stroke-width="1.5"/>
+        <text x="225" y="33" class="url-text" text-anchor="middle">www.SaravanaCrackers.co.in</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- 5. TRADITIONAL FOREGROUND DIYAS -->
+  <g id="bottom-diyas" transform="translate(0, 645)">
+    <line x1="0" y1="50" x2="1920" y2="50" stroke="url(#goldGrad)" stroke-width="2" opacity="0.4"/>
+
+    <!-- Left Diya -->
+    <g transform="translate(160, 0)">
+      <path d="M-40,40 C-35,15 35,15 40,40 Z" fill="#a03212" stroke="#d4af37" stroke-width="1.5"/>
+      <ellipse cx="0" cy="20" rx="35" ry="9" fill="#581604"/>
+      <circle cx="0" cy="0" r="28" fill="url(#flameGlow)"/>
+      <ellipse cx="0" cy="2" rx="6" ry="14" fill="#ffffff"/>
+    </g>
+
+    <!-- Center-Left Diya -->
+    <g transform="translate(680, 15)">
+      <path d="M-32,32 C-28,12 28,12 32,32 Z" fill="#a03212" stroke="#d4af37" stroke-width="1.5"/>
+      <ellipse cx="0" cy="16" rx="28" ry="7" fill="#581604"/>
+      <circle cx="0" cy="2" r="22" fill="url(#flameGlow)"/>
+      <ellipse cx="0" cy="3" rx="5" ry="11" fill="#ffffff"/>
+    </g>
+
+    <!-- Center-Right Diya -->
+    <g transform="translate(1220, 15)">
+      <path d="M-32,32 C-28,12 28,12 32,32 Z" fill="#a03212" stroke="#d4af37" stroke-width="1.5"/>
+      <ellipse cx="0" cy="16" rx="28" ry="7" fill="#581604"/>
+      <circle cx="0" cy="2" r="22" fill="url(#flameGlow)"/>
+      <ellipse cx="0" cy="3" rx="5" ry="11" fill="#ffffff"/>
+    </g>
+
+    <!-- Right Diya -->
+    <g transform="translate(1760, 0)">
+      <path d="M-40,40 C-35,15 35,15 40,40 Z" fill="#a03212" stroke="#d4af37" stroke-width="1.5"/>
+      <ellipse cx="0" cy="20" rx="35" ry="9" fill="#581604"/>
+      <circle cx="0" cy="0" r="28" fill="url(#flameGlow)"/>
+      <ellipse cx="0" cy="2" rx="6" ry="14" fill="#ffffff"/>
+    </g>
+  </g>
+
+  <!-- 6. FESTIVE GOLD BORDER FRAME -->
+  <rect x="15" y="15" width="1890" height="690" fill="none" stroke="url(#goldGrad)" stroke-width="2"/>
+  <rect x="23" y="23" width="1874" height="674" fill="none" stroke="#ffd966" stroke-width="0.8" opacity="0.6"/>
+
+  <g stroke="url(#goldGrad)" stroke-width="2" fill="none">
+    <polyline points="15,45 45,45 45,15"/>
+    <polyline points="1875,15 1875,45 1905,45"/>
+    <polyline points="15,675 45,675 45,705"/>
+    <polyline points="1875,705 1875,675 1905,675"/>
+  </g>
+</svg>

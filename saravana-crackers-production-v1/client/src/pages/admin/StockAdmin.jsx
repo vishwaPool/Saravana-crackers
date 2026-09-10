@@ -1,7 +1,8 @@
+import ActionForm from "../../components/ActionForm";
 import {useEffect,useState} from "react";
 import {api} from "../../api";
 
-export default function StockAdmin(){
+export default function StockAdmin(){const[loadError,setLoadError]=useState("");
   const [movements,setMovements]=useState([]);
   const [q,setQ]=useState("");
   const [products,setProducts]=useState([]);
@@ -10,12 +11,12 @@ export default function StockAdmin(){
   const [adjust,setAdjust]=useState({physicalStock:"",reason:""});
   const [message,setMessage]=useState("");
 
-  const load=()=>api("/admin/stock/movements").then(setMovements);
+  const load=()=>api("/admin/stock/movements").then(setMovements).catch(e=>setLoadError(e.message));
   useEffect(()=>{load()},[]);
   useEffect(()=>{
     if(!q.trim()){setProducts([]);return}
     let live=true;
-    api(`/admin/products/search?q=${encodeURIComponent(q)}`).then(data=>live&&setProducts(data));
+    api(`/admin/products/search?q=${encodeURIComponent(q)}`).then(data=>live&&setProducts(data)).catch(e=>live&&setLoadError(e.message));
     return()=>{live=false};
   },[q]);
 
@@ -32,7 +33,7 @@ export default function StockAdmin(){
   async function saveAdjust(e){
     e.preventDefault();
     const ok=window.confirm(`Confirm stock adjustment for ${selected?.name}? This will create an audit record.`);
-    if(!ok)return;
+    if(!ok)return false;
     await api("/admin/stock/adjust",{method:"POST",body:JSON.stringify({...adjust,productId:selected?.id})});
     setMessage("Stock adjustment saved.");
     setAdjust({physicalStock:"",reason:""});
@@ -42,7 +43,7 @@ export default function StockAdmin(){
   }
 
   return <div>
-    <h1>Stock Management</h1>
+    <h1>Stock Management</h1>{loadError&&<div className="alert" role="alert">Unable to load data: {loadError} <button type="button" onClick={()=>window.location.reload()}>Retry</button></div>}
     <div className="panel">
       <input className="pos-search small" placeholder="Search product for stock entry..." value={q} onChange={e=>setQ(e.target.value)}/>
       {products.length>0&&<div className="suggestions inline">{products.map(p=><button key={p.id} onClick={()=>{setSelected(p);setProducts([]);setQ(p.name)}}><b>{p.name}</b><span>{p.sku} · Current {p.stock}</span></button>)}</div>}
@@ -51,21 +52,21 @@ export default function StockAdmin(){
     </div>
 
     <div className="report-grid">
-      <form className="panel form" onSubmit={saveReceive}>
+      <ActionForm className="panel form" onSubmit={saveReceive}>
         <h2>Receive Stock</h2>
-        <input className="input" placeholder="Received Quantity" value={receive.quantity} onChange={e=>setReceive({...receive,quantity:e.target.value})}/>
+        <input className="input" type="number" required min="1" step="1" placeholder="Received Quantity" value={receive.quantity} onChange={e=>setReceive({...receive,quantity:e.target.value})}/>
         <input className="input" placeholder="Supplier" value={receive.supplier} onChange={e=>setReceive({...receive,supplier:e.target.value})}/>
         <input className="input" placeholder="Purchase Invoice Number" value={receive.purchaseInvoiceNumber} onChange={e=>setReceive({...receive,purchaseInvoiceNumber:e.target.value})}/>
-        <input className="input" placeholder="Purchase Price" value={receive.purchasePrice} onChange={e=>setReceive({...receive,purchasePrice:e.target.value})}/>
+        <input className="input" type="number" required min="0" step="any" placeholder="Purchase Price" value={receive.purchasePrice} onChange={e=>setReceive({...receive,purchasePrice:e.target.value})}/>
         <input className="input" placeholder="Remarks" value={receive.remarks} onChange={e=>setReceive({...receive,remarks:e.target.value})}/>
         <button className="btn" disabled={!selected}>Save Stock Received</button>
-      </form>
-      <form className="panel form" onSubmit={saveAdjust}>
+      </ActionForm>
+      <ActionForm className="panel form" onSubmit={saveAdjust}>
         <h2>Stock Adjustment</h2>
-        <input className="input" placeholder="Physical Stock" value={adjust.physicalStock} onChange={e=>setAdjust({...adjust,physicalStock:e.target.value})}/>
-        <input className="input" placeholder="Reason: damaged, missing, correction..." value={adjust.reason} onChange={e=>setAdjust({...adjust,reason:e.target.value})}/>
+        <input className="input" type="number" required min="0" step="1" placeholder="Physical Stock" value={adjust.physicalStock} onChange={e=>setAdjust({...adjust,physicalStock:e.target.value})}/>
+        <input className="input" required placeholder="Reason: damaged, missing, correction..." value={adjust.reason} onChange={e=>setAdjust({...adjust,reason:e.target.value})}/>
         <button className="btn danger-bg" disabled={!selected}>Save Adjustment</button>
-      </form>
+      </ActionForm>
     </div>
 
     <h2>Stock Movement History</h2>

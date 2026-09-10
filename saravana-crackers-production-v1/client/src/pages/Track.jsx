@@ -1,2 +1,12 @@
-import{useState}from"react";import{api}from"../api";
-export default function Track(){const[o,setO]=useState(""),[p,setP]=useState(""),[d,setD]=useState(null),[e,setE]=useState("");async function go(x){x.preventDefault();try{setD(await api(`/orders/track/${o}?phone=${p}`));setE("")}catch(err){setE(err.message)}}return <section className="section"><div className="container narrow"><h1>Track Order</h1><form className="panel form" onSubmit={go}><input className="input" placeholder="Order number" value={o} onChange={x=>setO(x.target.value)}/><input className="input" placeholder="Phone" value={p} onChange={x=>setP(x.target.value)}/><button className="btn">Track</button></form>{e&&<div className="alert">{e}</div>}{d&&<div className="panel"><h2>{d.orderNumber}</h2><p>Status: <b>{d.status}</b></p><p>Total: ₹{d.total}</p></div>}</div></section>}
+import {useState} from "react";
+import {api} from "../api";
+import ActionForm from "../components/ActionForm";
+export default function Track(){
+  const [order,setOrder]=useState(""),[phone,setPhone]=useState(""),[result,setResult]=useState(null);
+  async function track(event){
+    event.preventDefault();
+    setResult(null);
+    setResult(await api(`/orders/track/${encodeURIComponent(order.trim())}?phone=${encodeURIComponent(phone.trim())}`));
+  }
+  return <section className="section"><div className="container narrow"><h1>Track Order</h1><ActionForm className="panel form" onSubmit={track} successMessage="Order found."><label>Order number *<input required className="input" value={order} onChange={event=>setOrder(event.target.value)}/></label><label>Phone *<input required type="tel" className="input" value={phone} onChange={event=>setPhone(event.target.value)}/></label><button className="btn">Track</button></ActionForm>{result&&<div className="panel"><h2>{result.orderNumber}</h2><p>Status: <b>{result.status}</b></p><p>Total: Rs. {result.total}</p></div>}</div></section>;
+}

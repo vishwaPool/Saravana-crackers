@@ -8,6 +8,8 @@ import Checkout from "./pages/Checkout";
 import Track from "./pages/Track";
 import Login from "./pages/admin/Login";
 import Dashboard from "./pages/admin/Dashboard";
+import {lazy,Suspense} from "react";
+const Analytics=lazy(()=>import("./pages/admin/Analytics"));
 import Billing from "./pages/admin/Billing";
 import ProductsAdmin from "./pages/admin/ProductsAdmin";
 import CategoriesAdmin from "./pages/admin/CategoriesAdmin";
@@ -37,6 +39,7 @@ export default function App(){
     <Route path="/admin" element={<AdminLayout/>}>
       <Route index element={<Navigate to="dashboard" replace/>}/>
       <Route path="dashboard" element={<Dashboard/>}/>
+      <Route path="analytics" element={<Suspense fallback={<div role="status">Loading analytics…</div>}><Analytics/></Suspense>}/>
       <Route path="billing" element={<Billing/>}/>
       <Route path="products" element={<ProductsAdmin/>}/>
       <Route path="categories" element={<CategoriesAdmin/>}/>

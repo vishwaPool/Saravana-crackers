@@ -1,0 +1,64 @@
+{
+  "id": 17,
+  "invoiceNumber": "SC-2026-000009",
+  "requestKey": "QA-1788983329007",
+  "customerName": null,
+  "customerId": null,
+  "subtotal": 40,
+  "discountType": "FIXED",
+  "discountValue": 4,
+  "discountAmount": 4,
+  "gst": 0,
+  "roundOff": 0,
+  "grandTotal": 36,
+  "paymentMethod": "CASH",
+  "status": "COMPLETED",
+  "createdById": null,
+  "voidedById": null,
+  "voidReason": null,
+  "voidedAt": null,
+  "createdAt": "2026-09-09T19:49:04.323Z",
+  "updatedAt": "2026-09-09T19:49:04.323Z",
+  "customer": null,
+  "items": [
+    {
+      "id": 25,
+      "saleId": 17,
+      "productId": 114,
+      "productNameSnapshot": "QA-1788983329007 Product 1",
+      "skuSnapshot": "QA-1788983329007-1",
+      "categoryNameSnapshot": "QA-1788983329007",
+      "purchasePriceSnapshot": 5,
+      "sellingPrice": 10,
+      "quantity": 2,
+      "discount": 0,
+      "total": 20,
+      "returnedQuantity": 0
+    },
+    {
+      "id": 26,
+      "saleId": 17,
+      "productId": 115,
+      "productNameSnapshot": "QA-1788983329007 Product 2",
+      "skuSnapshot": "QA-1788983329007-2",
+      "categoryNameSnapshot": "QA-1788983329007",
+      "purchasePriceSnapshot": 5,
+      "sellingPrice": 10,
+      "quantity": 2,
+      "discount": 0,
+      "total": 20,
+      "returnedQuantity": 0
+    }
+  ],
+  "payments": [
+    {
+      "id": 15,
+      "saleId": 17,
+      "paymentMethod": "CASH",
+      "amount": 36,
+      "referenceNumber": null,
+      "createdAt": "2026-09-09T19:49:04.323Z"
+    }
+  ],
+  "returns": []
+}

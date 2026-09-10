@@ -3,12 +3,12 @@ import {api} from "../../api";
 
 const money=n=>Number(n||0).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
 
-export default function Dashboard(){
+export default function Dashboard(){const[loadError,setLoadError]=useState("");
   const [d,setD]=useState(null);
-  useEffect(()=>{api("/admin/dashboard/pos").then(setD)},[]);
-  if(!d)return "Loading...";
+  useEffect(()=>{api("/admin/dashboard/pos").then(setD).catch(e=>setLoadError(e.message))},[]);
+  if(!d)return loadError?<div role="alert">{loadError}<button onClick={()=>window.location.reload()}>Retry</button></div>:"Loading...";
   return <>
-    <h1>Dashboard</h1>
+    <h1>Dashboard</h1>{loadError&&<div className="alert" role="alert">Unable to load data: {loadError} <button type="button" onClick={()=>window.location.reload()}>Retry</button></div>}
     <div className="stats">
       {Object.entries({
         "Today's Sales":`Rs. ${money(d.todaySales)}`,

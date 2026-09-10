@@ -6,13 +6,14 @@ export function CartProvider({ children }) {
   const [items, setItems] = useState([]);
 
   const addItem = (product) => {
+    if (!product || !Number.isInteger(Number(product.stock)) || Number(product.stock) <= 0) return;
     setItems((current) => {
       const existing = current.find((item) => item.id === product.id);
 
       if (existing) {
         return current.map((item) =>
           item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
+            ? { ...item, quantity: Math.min(item.quantity + 1, Number(product.stock)) }
             : item
         );
       }
@@ -28,6 +29,8 @@ export function CartProvider({ children }) {
   };
 
   const updateQuantity = (productId, quantity) => {
+    quantity = Number(quantity);
+    if (!Number.isInteger(quantity)) return;
     if (quantity <= 0) {
       removeItem(productId);
       return;
@@ -36,7 +39,7 @@ export function CartProvider({ children }) {
     setItems((current) =>
       current.map((item) =>
         item.id === productId
-          ? { ...item, quantity }
+          ? { ...item, quantity: Math.min(quantity, Number(item.stock)) }
           : item
       )
     );
@@ -63,6 +66,10 @@ export function CartProvider({ children }) {
         updateQuantity,
         clearCart,
         total,
+        add: addItem,
+        qty: updateQuantity,
+        clear: clearCart,
+        count: items.reduce((sum, item) => sum + item.quantity, 0),
       }}
     >
       {children}

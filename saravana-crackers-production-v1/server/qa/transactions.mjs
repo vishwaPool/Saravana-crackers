@@ -1,0 +1,71 @@
+import {config} from "dotenv";
+config({path:new URL("../.env",import.meta.url),quiet:true});
+const {prisma}=await import("../src/lib/prisma.js");
+const {completeSale,createReturn,voidSale,receiveStock,adjustStock,dashboardSummary,categoryReport,profitReport}=await import("../src/services/posService.js");
+const assert=(await import("node:assert/strict")).default;
+const {writeFile}=await import("node:fs/promises");
+const results=[];
+const record=name=>{results.push(name);console.log(`PASS ${name}`)};
+const marker=`QA-${Date.now()}`;
+try {
+  const start=Date.now();
+  await prisma.$transaction(async tx=>{
+    await tx.product.findFirst({select:{id:true}});
+    await new Promise(resolve=>setTimeout(resolve,5500));
+    await tx.product.findFirst({select:{id:true}});
+  });
+  record(`transaction survives the old five-second limit (${Date.now()-start} ms)`);
+  const rollback=new Error("QA_ROLLBACK");
+  try {
+    await prisma.$transaction(async tx=>{
+      const category=await tx.category.create({data:{name:marker,slug:marker.toLowerCase()}});
+      await tx.product.createMany({data:[1,2].map(n=>({sku:`${marker}-${n}`,name:`${marker} Product ${n}`,slug:`${marker}-${n}`,categoryId:category.id,purchasePrice:5,mrp:20,retailPrice:10,stock:20}))});
+      const products=await tx.product.findMany({where:{categoryId:category.id},orderBy:{id:"asc"}});
+      const db={sale:tx.sale,saleItem:tx.saleItem,product:tx.product,payment:tx.payment,customer:tx.customer,order:tx.order,$transaction:callback=>callback(tx)};
+      const baseline=await dashboardSummary(db);
+      const body={requestKey:marker,items:products.map(p=>({productId:p.id,quantity:2,sellingPrice:10,discount:0})),discountType:"FIXED",discountValue:4,gst:0,paymentMethod:"CASH"};
+      const sale=await completeSale(body,null,db);
+      assert.equal(sale.grandTotal,36);assert.equal(sale.items.length,2);assert.equal(sale.payments[0].amount,36);
+      assert.equal((await tx.product.findUnique({where:{id:products[0].id}})).stock,18);
+      assert.equal(await tx.stockMovement.count({where:{referenceId:sale.invoiceNumber}}),2);
+      record("multi-item complete sale persists invoice, payment and stock ledgers together");
+      const dashboard=await dashboardSummary(db);
+      assert.equal(dashboard.todaySales-baseline.todaySales,36);assert.equal(dashboard.todayBills-baseline.todayBills,1);
+      record("completed sale immediately appears in dashboard totals");
+      const retry=await completeSale(body,null,db);
+      assert.equal(retry.id,sale.id);assert.equal((await tx.product.findUnique({where:{id:products[0].id}})).stock,18);
+      record("retrying the same request returns the saved invoice without reducing stock again");
+      await assert.rejects(()=>completeSale({...body,requestKey:`${marker}-invalid`,items:[{productId:products[0].id,quantity:100,sellingPrice:10}]},null,db),/stock/);
+      assert.equal((await tx.product.findUnique({where:{id:products[0].id}})).stock,18);
+      record("insufficient stock rejects the attempted sale without reducing stock");
+      const ret=await createReturn({saleId:sale.id,items:[{saleItemId:sale.items[0].id,quantity:1}]},null,db);
+      assert.equal(ret.refundAmount,9);assert.equal((await tx.product.findUnique({where:{id:sale.items[0].productId}})).stock,19);
+      await assert.rejects(()=>voidSale(sale.id,null,"QA",db),/returned items/);
+      await assert.rejects(()=>createReturn({saleId:sale.id,items:[{saleItemId:sale.items[0].id,quantity:2}]},null,db),/Only 1/);
+      record("returns restore only returned stock, apply bill discount, and prevent duplicate restoration");
+      const other=await completeSale({...body,requestKey:`${marker}-void`,items:[{productId:products[1].id,quantity:1,sellingPrice:10}],discountValue:0},null,db);
+      await voidSale(other.id,null,"QA void",db);
+      await assert.rejects(()=>voidSale(other.id,null,"QA again",db),/Only completed/);
+      assert.equal((await tx.product.findUnique({where:{id:products[1].id}})).stock,18);
+      record("void restores stock once and rejects repeat voids");
+      const afterReturn=await dashboardSummary(db);
+      assert.equal(afterReturn.todaySales-baseline.todaySales,27);assert.equal(afterReturn.todayItemsSold-baseline.todayItemsSold,3);
+      const categories=await categoryReport(db);
+      assert.equal(categories.find(row=>row.category===marker).total,27);
+      const profits=await profitReport(db);
+      assert.equal(profits.products.filter(row=>products.some(p=>p.id===row.productId)).reduce((sum,row)=>sum+row.profit,0),12);
+      record("dashboard, category and profit reports reflect discounts, returns and voids");
+      const received=await receiveStock({productId:products[1].id,quantity:3,purchasePrice:0},null,db);
+      assert.equal(received.newStock,21);
+      assert.equal(Number((await tx.product.findUnique({where:{id:products[1].id}})).purchasePrice),0);
+      const adjusted=await adjustStock({productId:products[1].id,physicalStock:0,reason:"QA count"},null,db);
+      assert.equal(adjusted.newStock,0);
+      record("receive and adjustment update stock and movement records");
+      await writeFile(new URL("./receipt-fixture.json",import.meta.url),JSON.stringify(sale,null,2));
+      throw rollback;
+    },{timeout:120000,maxWait:10000});
+  }catch(error){if(error!==rollback)throw error}
+  assert.equal(await prisma.category.count({where:{name:marker}}),0);
+  assert.equal(await prisma.sale.count({where:{requestKey:{startsWith:marker}}}),0);
+  record("all QA database writes rolled back; no test sales or products remain");
+} finally {await prisma.$disconnect()}

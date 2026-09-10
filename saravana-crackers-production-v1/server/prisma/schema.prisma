@@ -215,6 +215,7 @@ model Sale {
   id              Int           @id @default(autoincrement())
   invoiceNumber   String        @unique
   requestKey      String?       @unique
+  customerName    String?
   customerId      Int?
   customer        Customer?     @relation(fields: [customerId], references: [id])
   subtotal        Decimal       @db.Decimal(12, 2)

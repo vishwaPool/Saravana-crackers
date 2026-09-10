@@ -1,0 +1,1 @@
+ALTER TABLE `Sale` ADD COLUMN `customerName` VARCHAR(191) NULL;
