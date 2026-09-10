@@ -21,7 +21,7 @@ router.post("/login", async (req, res) => {
     { expiresIn: "8h" }
   );
 
-  const secure = String(process.env.COOKIE_SECURE).toLowerCase() === "true";
+  const secure = process.env.COOKIE_SECURE === "true" || process.env.NODE_ENV === "production";
 
   res.cookie("sc_admin_token", token, {
     httpOnly: true,

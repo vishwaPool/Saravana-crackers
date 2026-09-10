@@ -6,8 +6,10 @@ const prisma = new PrismaClient();
 const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
 async function main() {
-  const email = process.env.ADMIN_EMAIL || "admin@saravanacrackers.in";
-  const passwordHash = await bcrypt.hash(process.env.ADMIN_PASSWORD || "ChangeMe123!", 12);
+  const email = process.env.ADMIN_EMAIL;
+  const password = process.env.ADMIN_PASSWORD;
+  if (!email || !password) throw new Error("ADMIN_EMAIL and ADMIN_PASSWORD are required to seed an admin user");
+  const passwordHash = await bcrypt.hash(password, 12);
 
   await prisma.user.upsert({
     where: { email },

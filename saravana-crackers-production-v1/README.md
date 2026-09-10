@@ -76,3 +76,12 @@ Before public launch:
 - configure backup/recovery
 - configure your business address and policies
 - validate applicable fireworks sales/transport requirements
+
+## Vercel deployment
+
+Create two Vercel projects from this repository:
+
+- Frontend root directory: `client`; build command: `npm run build`; set `VITE_API_URL` to the deployed backend origin.
+- Backend root directory: `server`; build command: `npm run build`; set `DATABASE_URL`, `FRONTEND_URL`, `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `NODE_ENV=production`, and `COOKIE_SECURE=true`.
+
+The backend uses the `server/api/index.js` function entrypoint and Prisma generates during its build. Run migrations from a controlled environment with the production `DATABASE_URL`; do not use `prisma db push` for production schema changes.

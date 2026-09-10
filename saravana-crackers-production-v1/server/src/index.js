@@ -12,9 +12,17 @@ if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is required");
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
+const configuredOrigins = (process.env.FRONTEND_URL || process.env.CLIENT_URL || "")
+  .split(",")
+  .map(origin => origin.trim())
+  .filter(Boolean);
+const allowedOrigins = new Set(["http://localhost:5173", ...configuredOrigins]);
 
 app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:5173",
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+    return callback(new Error("CORS origin not allowed"));
+  },
   credentials: true
 }));
 
@@ -33,4 +41,8 @@ app.use((err, _req, res, _next) => {
   res.status(status).json({ error: message });
 });
 
-app.listen(port, () => console.log(`API running at http://localhost:${port}`));
+if (!process.env.VERCEL) {
+  app.listen(port, () => console.log(`API running on port ${port}`));
+}
+
+export default app;
