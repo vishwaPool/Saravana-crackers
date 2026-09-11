@@ -1,4 +1,4 @@
-import product5000Wala from "./product-5000-wala.png";
+import product5000Wala from "./categories/product-5000-wala.png";
 import productLakshmi4 from "./product-lakshmi-4.png";
 import productLakshmi3Half from "./product-lakshmi-3-half.png";
 import productLakshmi3HalfAlt from "./product-lakshmi-3-half-alt.png";

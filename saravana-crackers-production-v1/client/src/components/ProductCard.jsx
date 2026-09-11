@@ -1,5 +1,7 @@
 import {productImage} from "../assets/productImages";
 import {useCart} from "../state/CartContext";
+import StoreImage from "./StoreImage";
+import StoreIcon from "./StoreIcon";
 
 export default function ProductCard({p}){
   const {addItem,items}=useCart();
@@ -11,7 +13,7 @@ export default function ProductCard({p}){
 
   return <article className="product">
     <div className="pic">
-      <img src={productImage(p)} alt={p.name}/>
+      <StoreImage src={productImage(p)} alt={p.name}/>
       {off>0&&<b>{off}% OFF</b>}
     </div>
     <div className="pad">
@@ -19,11 +21,11 @@ export default function ProductCard({p}){
       <h3>{p.name}</h3>
       <p>{p.unit}</p>
       <div className="price">
-        <strong>Rs. {price.toLocaleString("en-IN")}</strong>
-        <del>Rs. {mrp.toLocaleString("en-IN")}</del>
+        <strong>₹{price.toLocaleString("en-IN")}</strong>
+        {mrp>price&&<del>₹{mrp.toLocaleString("en-IN")}</del>}
       </div>
       <button disabled={!Number.isInteger(stock)||stock<=quantity} className="btn" onClick={()=>addItem(p)}>
-        {stock<=0?"Out of Stock":quantity>=stock?"Stock limit reached":"Add to Cart"}
+        <StoreIcon name="cart" width="17" height="17"/>{stock<=0?"Out of Stock":quantity>=stock?"Stock limit reached":"Add to Cart"}
       </button>
       <p role="status" aria-live="polite">{quantity>0?`${quantity} in cart`:""}</p>
     </div>

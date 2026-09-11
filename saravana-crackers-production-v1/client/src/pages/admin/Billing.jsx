@@ -2,6 +2,7 @@ import BillPrint, {Invoice} from "../../components/BillPrint";
 import {useAsyncAction} from "../../state/useAsyncAction";
 import {useEffect,useMemo,useRef,useState} from "react";
 import {api} from "../../api";
+import "./billing.css";
 
 const money=n=>Number(n||0).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
 const emptyCustomer={name:"",mobile:"",address:""};
@@ -197,12 +198,11 @@ export default function Billing(){
   });
 
   return <fieldset className="pos-page action-container" disabled={pending} aria-busy={pending}>
-    <div className="pos-main no-print">
-      <div className="pos-toolbar">
+      <div className="pos-toolbar no-print">
         <h1>Billing / POS</h1>
         <button className="btn ghost" onClick={loadHeld}>Hold Bills</button>
       </div>
-
+    <div className="pos-main no-print">
       <div className="search-box">
         <input ref={searchRef} className="pos-search" value={q} onChange={e=>setQ(e.target.value)} onKeyDown={onSearchKey} placeholder="Search crackers by name, code or category..." />
         {results.length>0&&<div className="suggestions">{results.map((p,i)=>
@@ -244,24 +244,32 @@ export default function Billing(){
       </div>
     </div>
 
-    <aside className="pos-summary no-print">
+    <section className="pos-billing-panel no-print" aria-label="Billing panel">
+    <div className="pos-summary">
       <h2>Bill Summary</h2>
       <label>Customer Name<input className="input" placeholder="Customer name (optional)" value={customer.name} onChange={e=>setCustomer({...customer,name:e.target.value})}/></label>
-      <div className="summary-line"><span>Items</span><b>{summary.itemCount}</b></div>
+      <div className="pos-counts"><div className="summary-line"><span>Items</span><b>{summary.itemCount}</b></div>
       <div className="summary-line"><span>Total Quantity</span><b>{summary.totalQuantity}</b></div>
+      </div>
       <div className="summary-line"><span>Subtotal</span><b>Rs. {money(summary.subtotal)}</b></div>
+      <div className="pos-adjustments">
       <label>Discount Type<select className="input" value={discountType} onChange={e=>setDiscountType(e.target.value)}><option value="FIXED">Fixed</option><option value="PERCENTAGE">Percentage</option></select></label>
       <label>Discount<input id="bill-discount" className="input" value={discountValue} onChange={e=>setDiscountValue(e.target.value)}/></label>
       <label>GST<input className="input" value={gst} onChange={e=>setGst(e.target.value)}/></label>
+      </div>
       <div className="summary-line"><span>Discount</span><b>Rs. {money(summary.discountAmount)}</b></div>
       <div className="summary-line"><span>Round Off</span><b>Rs. {money(summary.roundOff)}</b></div>
       <div className="grand"><span>GRAND TOTAL</span><strong>Rs. {money(summary.grandTotal)}</strong></div>
       <label>Payment Method<select id="payment-method" className="input" value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value)}><option>CASH</option><option>UPI</option><option>CARD</option><option>CREDIT</option></select></label>
       <button className="btn complete" disabled={!items.length} onClick={completeSale}>COMPLETE SALE</button>
+      <div className="pos-secondary-actions">
       <button className="btn ghost" disabled={!items.length} onClick={holdBill}>HOLD BILL</button>
       <button className="btn ghost" onClick={()=>lastSale&&window.print()} disabled={!lastSale}>PRINT BILL</button>
+      </div>
       {lastSale&&<div className="last-sale" role="status">Sale completed successfully. Bill: <b>{lastSale.invoiceNumber}</b><button onClick={()=>setShowPreview(true)}>View Bill</button></div>}
-    </aside>
+    </div>
+    {lastSale&&showPreview&&<section className="bill-preview" aria-label="Generated bill"><h2>Saved bill</h2><Invoice sale={lastSale}/><div className="pos-secondary-actions"><button className="btn" onClick={()=>window.print()}>Print / Save PDF</button><button className="btn ghost" onClick={()=>setShowPreview(false)}>Close preview</button></div></section>}
+    </section>
 
     {showHeld&&<div className="modal no-print"><div className="modal-box">
       <h2>Hold Bills</h2>
@@ -272,7 +280,6 @@ export default function Billing(){
       <button className="btn ghost" onClick={()=>setShowHeld(false)}>Close</button>
     </div></div>}
 
-    {lastSale&&showPreview&&<div className="bill-preview no-print"><h2>Saved bill</h2><Invoice sale={lastSale}/><button className="btn" onClick={()=>window.print()}>Print / Save PDF</button><button className="btn ghost" onClick={()=>setShowPreview(false)}>Close preview</button></div>}
     <BillPrint sale={lastSale}/>
   </fieldset>;
 }

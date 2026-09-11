@@ -1,0 +1,60 @@
+/* POS screen layout only; the separate receipt portal retains its print styles. */
+@media screen {
+  .admin:has(.pos-page) > section { min-width: 0; }
+  .admin .pos-page.action-container {
+    grid-template-columns: minmax(0, 1fr) clamp(360px, 29vw, 440px);
+    gap: 12px 16px;
+    align-items: start;
+  }
+  .admin .pos-page > .pos-toolbar { grid-column: 1 / -1; margin: 0; }
+  .pos-page .pos-main, .pos-page .pos-billing-panel { min-width: 0; min-height: 0; }
+  .pos-page .pos-billing-panel {
+    background: #fff;
+    border: 1px solid #ded6cd;
+    border-radius: 10px;
+  }
+  .admin .pos-page .pos-summary {
+    position: static;
+    display: grid;
+    gap: 8px;
+    padding: 14px;
+    border: 0;
+    background: transparent;
+  }
+  .admin .pos-page .pos-summary label { min-width: 0; gap: 4px; }
+  .admin .pos-page .pos-summary .input { min-width: 0; height: 38px; padding: 7px 8px; }
+  .pos-page .pos-adjustments { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .pos-page .pos-counts, .pos-page .pos-secondary-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .pos-page .summary-line { font-size: 14px; gap: 8px; }
+  .pos-page .summary-line b { text-align: right; overflow-wrap: anywhere; }
+  .admin .pos-page .grand { padding: 10px 12px; }
+  .admin .pos-page .grand strong { overflow-wrap: anywhere; }
+  .pos-page .pos-secondary-actions .btn { padding: 10px 8px; }
+  .pos-page .last-sale { background: #fffaf4; border-color: #ded6cd; font-size: 13px; overflow-wrap: anywhere; }
+  .pos-page .last-sale button { margin-left: 8px; }
+  .pos-page .bill-preview { padding: 14px; border-top: 1px solid #ded6cd; border-radius: 0; background: transparent; }
+  .pos-page .bill-preview > h2 { margin: 0 0 12px; font-size: 20px; }
+  .pos-page .bill-preview .invoice { width: 100%; max-width: none; padding: 0; border: 0; border-radius: 0; font-size: 12px; overflow-wrap: anywhere; }
+  .pos-page .bill-preview .invoice h1 { font-size: 20px; }
+  .pos-page .bill-preview .invoice h2 { font-size: 14px; }
+  .pos-page .bill-preview .invoice table { table-layout: fixed; min-width: 0; font-size: 11px; }
+  .pos-page .bill-preview .invoice th, .pos-page .bill-preview .invoice td { padding: 6px 3px; vertical-align: top; }
+  .pos-page .bill-preview .invoice th:first-child { width: 30%; }
+  .pos-page .bill-preview .invoice th:nth-child(2) { width: 10%; }
+  .pos-page .bill-preview .print-total { flex-wrap: wrap; font-size: 18px; }
+  .pos-page .bill-preview .print-total b { margin-left: auto; }
+  .admin .pos-page .bill-table { margin-top: 8px; }
+  .pos-page .bill-table table { min-width: 600px; font-size: 13px; }
+  .admin .pos-page .bill-table th, .admin .pos-page .bill-table td { padding: 8px 6px; }
+  .pos-page .bill-table .qty { grid-template-columns: 26px 36px 26px; gap: 2px; }
+  .pos-page .bill-table .qty input { width: 100%; min-width: 0; padding: 6px 2px; text-align: center; }
+  .pos-page .bill-table .cell-input { width: 58px; padding: 7px 4px; }
+  .pos-page .modal { overflow-y: auto; }
+  .pos-page .modal-box { margin-block: auto; }
+}
+@media screen and (max-width: 1100px) {
+  .admin .pos-page.action-container { grid-template-columns: minmax(0, 1fr); }
+}
+@media screen and (max-width: 380px) {
+  .pos-page .pos-adjustments { grid-template-columns: minmax(0, 1fr); }
+}
