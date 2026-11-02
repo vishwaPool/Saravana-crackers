@@ -1,4 +1,5 @@
-import BillPrint, {Invoice} from "../../components/BillPrint";
+import BillPrint from "../../components/BillPrint";
+import CompletedBillPreview from "../../components/CompletedBillPreview";
 import {useAsyncAction} from "../../state/useAsyncAction";
 import {useEffect,useMemo,useRef,useState} from "react";
 import {api} from "../../api";
@@ -63,6 +64,7 @@ export default function Billing(){
 
   function addProduct(product){
     if(!product)return;
+    setShowPreview(false);
     if(product.stock<=0){setError("OUT OF STOCK");focusSearch();return}
     setError("");
     setItems(current=>{
@@ -166,6 +168,7 @@ export default function Billing(){
     await api(`/admin/held-sales/${bill.id}`,{method:"DELETE"});
     setCustomer(bill.customerData||emptyCustomer);
     setItems(bill.items||[]);
+    setShowPreview(false);
     setShowHeld(false);
     focusSearch();
   }
@@ -204,13 +207,15 @@ export default function Billing(){
       </div>
     <div className="pos-main no-print">
       <div className="search-box">
-        <input ref={searchRef} className="pos-search" value={q} onChange={e=>setQ(e.target.value)} onKeyDown={onSearchKey} placeholder="Search crackers by name, code or category..." />
+        <input ref={searchRef} className="pos-search" value={q} onChange={e=>{setQ(e.target.value);if(e.target.value.length)setShowPreview(false)}} onKeyDown={onSearchKey} placeholder="Search crackers by name, code or category..." />
         {results.length>0&&<div className="suggestions">{results.map((p,i)=>
           <button key={p.id} className={i===selected?"active":""} onMouseDown={e=>{e.preventDefault();addProduct(p)}}>
             <b>{p.name}</b><span>{p.sku} - {p.category} - Stock {p.stock}</span><strong>Rs. {money(p.sellingPrice)}</strong>
           </button>
         )}</div>}
       </div>
+
+      {lastSale&&showPreview&&<CompletedBillPreview sale={lastSale} onClose={()=>setShowPreview(false)}/>}
 
       {pending&&<p role="status">Processing, please wait...</p>}
       {actionError&&<div className="alert" role="alert">{actionError}</div>}
@@ -266,9 +271,8 @@ export default function Billing(){
       <button className="btn ghost" disabled={!items.length} onClick={holdBill}>HOLD BILL</button>
       <button className="btn ghost" onClick={()=>lastSale&&window.print()} disabled={!lastSale}>PRINT BILL</button>
       </div>
-      {lastSale&&<div className="last-sale" role="status">Sale completed successfully. Bill: <b>{lastSale.invoiceNumber}</b><button onClick={()=>setShowPreview(true)}>View Bill</button></div>}
+      {lastSale&&<div className="last-sale">Last completed bill: <b>{lastSale.invoiceNumber}</b><button className="btn ghost" onClick={()=>{setQ("");setResults([]);setShowPreview(true);focusSearch()}}>View Last Bill</button></div>}
     </div>
-    {lastSale&&showPreview&&<section className="bill-preview" aria-label="Generated bill"><h2>Saved bill</h2><Invoice sale={lastSale}/><div className="pos-secondary-actions"><button className="btn" onClick={()=>window.print()}>Print / Save PDF</button><button className="btn ghost" onClick={()=>setShowPreview(false)}>Close preview</button></div></section>}
     </section>
 
     {showHeld&&<div className="modal no-print"><div className="modal-box">

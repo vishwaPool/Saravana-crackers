@@ -32,17 +32,24 @@
   .pos-page .pos-secondary-actions .btn { padding: 10px 8px; }
   .pos-page .last-sale { background: #fffaf4; border-color: #ded6cd; font-size: 13px; overflow-wrap: anywhere; }
   .pos-page .last-sale button { margin-left: 8px; }
-  .pos-page .bill-preview { padding: 14px; border-top: 1px solid #ded6cd; border-radius: 0; background: transparent; }
-  .pos-page .bill-preview > h2 { margin: 0 0 12px; font-size: 20px; }
-  .pos-page .bill-preview .invoice { width: 100%; max-width: none; padding: 0; border: 0; border-radius: 0; font-size: 12px; overflow-wrap: anywhere; }
-  .pos-page .bill-preview .invoice h1 { font-size: 20px; }
-  .pos-page .bill-preview .invoice h2 { font-size: 14px; }
-  .pos-page .bill-preview .invoice table { table-layout: fixed; min-width: 0; font-size: 11px; }
-  .pos-page .bill-preview .invoice th, .pos-page .bill-preview .invoice td { padding: 6px 3px; vertical-align: top; }
-  .pos-page .bill-preview .invoice th:first-child { width: 30%; }
-  .pos-page .bill-preview .invoice th:nth-child(2) { width: 10%; }
-  .pos-page .bill-preview .print-total { flex-wrap: wrap; font-size: 18px; }
+  .pos-page .bill-preview { margin: 0; padding: 0; border: 1px solid #ead8c4; border-radius: 10px; background: #fff; overflow-wrap: anywhere; }
+  .pos-page .completed-header { padding: 14px 16px; border-radius: 9px 9px 0 0; background: linear-gradient(110deg, #851e24, #b8491c); color: #fff; }
+  .pos-page .completed-header h2 { margin: 0; font-size: 21px; color: #fff; }
+  .pos-page .completed-header p { margin: 4px 0 10px; }
+  .pos-page .completed-badge { display: inline-block; padding: 4px 9px; border-radius: 6px; background: #e5f6e9; color: #145c32; font-size: 12px; font-weight: 700; }
+  .pos-page .completed-info { display: flex; flex-wrap: wrap; gap: 8px 20px; padding: 12px 16px; background: #fffaf1; font-size: 13px; }
+  .pos-page .completed-products { width: 100%; min-width: 0; table-layout: fixed; font-size: 13px; }
+  .pos-page .completed-products th, .pos-page .completed-products td { padding: 10px 8px; text-align: right; vertical-align: top; color: #30251e; border-bottom: 1px solid #eee4d8; }
+  .pos-page .completed-products th { background: #fff0d2; }
+  .pos-page .completed-products th:first-child, .pos-page .completed-products td:first-child { text-align: left; width: 38%; }
+  .pos-page .completed-products th:nth-child(2) { width: 12%; }
+  .pos-page .completed-products tbody tr:nth-child(even) { background: #fffcf7; }
+  .pos-page .completed-products small { display: block; margin-top: 4px; font-size: 11px; }
+  .pos-page .completed-totals { display: grid; gap: 6px; padding: 12px 16px; font-size: 13px; }
+  .pos-page .bill-preview .print-total { flex-wrap: wrap; padding: 12px; border: 1px solid #b5d8c1; border-radius: 6px; background: #edf8ef; color: #145c32; font-size: 20px; font-weight: 800; }
   .pos-page .bill-preview .print-total b { margin-left: auto; }
+  .pos-page .bill-preview > .pos-secondary-actions { padding: 0 16px 14px; }
+  .pos-page .completed-print { background: #ad351e; color: #fff; }
   .admin .pos-page .bill-table { margin-top: 8px; }
   .pos-page .bill-table table { min-width: 600px; font-size: 13px; }
   .admin .pos-page .bill-table th, .admin .pos-page .bill-table td { padding: 8px 6px; }

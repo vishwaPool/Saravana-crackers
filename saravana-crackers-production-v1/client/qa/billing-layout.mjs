@@ -11,7 +11,7 @@ const page = await browser.newPage();
 const errors = [];
 page.on("pageerror", error => errors.push(error.message));
 const products = Array.from({length:12}, (_, i) => ({id:i+1, name:`Celebration crackers product ${i+1}`, sku:`QA${i+1}`, category:"Sparklers", stock:100, minimumStock:5, sellingPrice:100}));
-let held = [], saved, posted;
+let held = [], saved, posted, salePosts=0;
 // All requests are intercepted: billing and hold checks never touch a real database.
 await page.route("**/api/**", async route => {
   const req = route.request(), url = new URL(req.url()), path = url.pathname;
@@ -24,7 +24,7 @@ await page.route("**/api/**", async route => {
   } else if (path.endsWith("/held-sales")) data = held;
   else if (path.endsWith("/held-sales/1")) {held = []; data = {};}
   else if (path.endsWith("/sales") && req.method() === "POST") {
-    posted = req.postDataJSON();
+    salePosts++; posted = req.postDataJSON();
     saved = {id:1, invoiceNumber:"QA-001", createdAt:new Date().toISOString(), status:"COMPLETED", customerName:posted.customer.name, paymentMethod:posted.paymentMethod, subtotal:1200, discountAmount:120, gst:18, roundOff:0, grandTotal:1098, items:posted.items.map((p,i)=>({...p,id:i+1,productNameSnapshot:p.name,total:p.quantity*p.sellingPrice-p.discount}))};
     data = saved;
   } else if (path.endsWith("/sales/1")) data = saved;
@@ -90,12 +90,28 @@ try {
   assert.equal(posted.discountType,"PERCENTAGE");
   assert.equal(posted.gst,18);
   assert.match(await page.locator(".bill-preview .print-total").innerText(),/1,098.00/);
-  assert.equal(await page.locator(".pos-billing-panel .bill-preview").count(),1);
+  assert.equal(await page.locator('.pos-main > .search-box + .bill-preview').count(),1);
+  assert.equal(await page.locator('.pos-search').evaluate(e=>e===document.activeElement),true);
+  assert.equal(await page.locator('.bill-table .qty').count(),0);
+  const gap=await page.evaluate(()=>document.querySelector('.bill-preview').getBoundingClientRect().top-document.querySelector('.search-box').getBoundingClientRect().bottom);
+  assert.ok(gap>=0&&gap<=8);
+  await page.locator('.pos-search').fill('Q');
+  assert.equal(await page.locator('.bill-preview').count(),0);
+  await page.locator('.pos-search').fill('');
+  assert.equal(await page.locator('.bill-preview').count(),0);
+  await summary.getByRole('button',{name:'View Last Bill',exact:true}).click();
+  await page.getByRole('button',{name:'Close Preview',exact:true}).click();
+  assert.equal(await page.locator('.bill-preview').count(),0);
+  await add(1);
+  await summary.getByRole('button',{name:'View Last Bill',exact:true}).click();
+  assert.equal(await page.locator('.bill-table .qty').count(),1);
+  assert.match(await page.locator('.grand').innerText(),/100.00/);
   for(const [w,h] of [[1366,768],[1440,900],[1536,864],[1920,1080],[1024,768],[390,844],[320,740]]) {
     await layout(w,h,true);
     await page.screenshot({path:join(output,`billing-${w}.png`),fullPage:true});
   }
-  await page.getByRole("button",{name:"Print / Save PDF",exact:true}).click();
+  await page.locator('.bill-preview').getByRole('button',{name:'PRINT BILL',exact:true}).click();
+  assert.equal(salePosts,1);
   assert.equal(await page.evaluate(()=>window.qaPrintCalls),1);
   await page.emulateMedia({media:"print"});
   assert.equal(await page.locator("#root").isVisible(),false);
