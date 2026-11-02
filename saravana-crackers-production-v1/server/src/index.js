@@ -7,6 +7,10 @@ import auth from "./routes/auth.js";
 import publicRoutes from "./routes/public.js";
 import adminRoutes from "./routes/admin.js";
 import analyticsRoutes from "./routes/analytics.js";
+import customerRequestRoutes from "./routes/customerRequests.js";
+import notificationRoutes from "./routes/notifications.js";
+import { createServer } from "node:http";
+import { attachRealtime } from "./realtime.js";
 
 if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is required");
 
@@ -43,6 +47,8 @@ app.use("/api/auth", auth);
 app.use("/api", publicRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/customer-requests", customerRequestRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 app.use((err, _req, res, _next) => {
   console.error(err);
@@ -51,7 +57,9 @@ app.use((err, _req, res, _next) => {
 });
 
 if (!process.env.VERCEL) {
-  app.listen(port, () => console.log(`API running on port ${port}`));
+  const server = createServer(app);
+  attachRealtime(server);
+  server.listen(port, () => console.log(`API running on port ${port}`));
 }
 
 export default app;

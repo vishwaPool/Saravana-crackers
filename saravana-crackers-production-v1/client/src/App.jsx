@@ -24,6 +24,8 @@ import ReturnsAdmin from "./pages/admin/ReturnsAdmin";
 import ReportsAdmin from "./pages/admin/ReportsAdmin";
 import SettingsAdmin from "./pages/admin/SettingsAdmin";
 import AuditAdmin from "./pages/admin/AuditAdmin";
+import CustomerRequests from "./pages/admin/CustomerRequests";
+import IncomingCustomerRequests from "./pages/admin/IncomingCustomerRequests";
 
 export default function App(){
   return <Routes>
@@ -54,6 +56,8 @@ export default function App(){
       <Route path="reports" element={<ReportsAdmin/>}/>
       <Route path="settings" element={<SettingsAdmin/>}/>
       <Route path="audit" element={<AuditAdmin/>}/>
+      <Route path="customer-requests" element={<CustomerRequests/>}/>
+      <Route path="incoming-customer-requests" element={<IncomingCustomerRequests/>}/>
     </Route>
   </Routes>
 }

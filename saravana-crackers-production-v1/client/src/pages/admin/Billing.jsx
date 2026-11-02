@@ -3,6 +3,8 @@ import CompletedBillPreview from "../../components/CompletedBillPreview";
 import {useAsyncAction} from "../../state/useAsyncAction";
 import {useEffect,useMemo,useRef,useState} from "react";
 import {api} from "../../api";
+import {io} from "socket.io-client";
+import {useNavigate} from "react-router-dom";
 import "./billing.css";
 
 const money=n=>Number(n||0).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -27,6 +29,17 @@ export default function Billing(){
   const [showHeld,setShowHeld]=useState(false);
   const [lastSale,setLastSale]=useState(null);
   const [error,setError]=useState("");
+  const [pendingRequests,setPendingRequests]=useState([]);
+  const [showRequestNotifications,setShowRequestNotifications]=useState(false);
+  const [expandedRequest,setExpandedRequest]=useState(null);
+  const notificationRef=useRef(null);
+  const navigate=useNavigate();
+
+  const loadPendingRequests=()=>{
+    api("/customer-requests?status=PENDING")
+      .then(setPendingRequests)
+      .catch(e=>setError(e.message));
+  };
 
   useEffect(()=>{
     searchRef.current?.focus();
@@ -35,6 +48,26 @@ export default function Billing(){
     if(id)api(`/admin/sales/${encodeURIComponent(id)}`).then(sale=>{if(live)setLastSale(current=>current||sale)}).catch(()=>sessionStorage.removeItem("sc-last-sale"));
     return()=>{live=false};
   },[]);
+
+  useEffect(()=>{
+    loadPendingRequests();
+    const timer=setInterval(loadPendingRequests,30000);
+    const socketUrl=import.meta.env.VITE_SOCKET_URL;
+    const socket=socketUrl?io(socketUrl,{withCredentials:true}):null;
+    socket?.on("notification",loadPendingRequests);
+    return()=>{
+      clearInterval(timer);
+      socket?.disconnect();
+    };
+  },[]);
+
+  useEffect(()=>{
+    const closeOnOutside=e=>{
+      if(showRequestNotifications&&!notificationRef.current?.contains(e.target))setShowRequestNotifications(false);
+    };
+    document.addEventListener("mousedown",closeOnOutside);
+    return()=>document.removeEventListener("mousedown",closeOnOutside);
+  },[showRequestNotifications]);
 
   useEffect(()=>{
     let live=true;
@@ -203,7 +236,29 @@ export default function Billing(){
   return <fieldset className="pos-page action-container" disabled={pending} aria-busy={pending}>
       <div className="pos-toolbar no-print">
         <h1>Billing / POS</h1>
-        <button className="btn ghost" onClick={loadHeld}>Hold Bills</button>
+        <div className="pos-toolbar-actions">
+          <div className="pos-request-notifications" ref={notificationRef}>
+            <button type="button" className="btn ghost request-bell" aria-label="Pending customer requests" aria-expanded={showRequestNotifications} onClick={()=>{setShowRequestNotifications(value=>!value);loadPendingRequests()}}>
+              <span aria-hidden="true">🔔</span>{pendingRequests.length>0&&<b className="badge">{pendingRequests.length}</b>}
+            </button>
+            {showRequestNotifications&&<div className="pos-request-popover">
+              <div className="pos-request-popover-header"><b>Pending Customer Requests</b><span>{pendingRequests.length}</span></div>
+              {!pendingRequests.length?<p className="empty">No new customer requests</p>:pendingRequests.map(request=><div className="pos-request-notification" key={request.id}>
+                <button type="button" className="pos-request-summary" onClick={()=>setExpandedRequest(expandedRequest===request.id?null:request.id)}>
+                  <span><b>{request.customerName||"Walk-in customer"}</b><small>{request.requestNumber} · {new Date(request.createdAt).toLocaleString()}</small></span>
+                  <span><b>{request.items.length}</b><small>products</small></span>
+                </button>
+                {expandedRequest===request.id&&<div className="pos-request-details">
+                  {request.items.map(item=><div className="pos-request-item" key={item.id}><b>{item.productNameSnapshot}</b><span>{item.quantity} {item.unit}</span><small>{item.productCode||"No code"}{item.category?` · ${item.category}`:""}</small></div>)}
+                  {request.notes&&<p><b>Notes:</b> {request.notes}</p>}
+                  <button type="button" className="btn ghost" onClick={()=>navigate(`/admin/incoming-customer-requests?requestId=${request.id}`)}>Open complete request</button>
+                </div>}
+              </div>)}
+              <button type="button" className="btn ghost pos-request-view-all" onClick={()=>navigate("/admin/incoming-customer-requests")}>View Customer Requests</button>
+            </div>}
+          </div>
+          <button className="btn ghost" onClick={loadHeld}>Hold Bills</button>
+        </div>
       </div>
     <div className="pos-main no-print">
       <div className="search-box">

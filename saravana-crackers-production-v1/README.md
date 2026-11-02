@@ -20,6 +20,7 @@
 - Stock movements
 - Shop settings
 - Audit logs
+- Customer product requests and indoor notifications
 - Prisma + MySQL
 
 ## Run
@@ -63,6 +64,24 @@ ADMIN_PASSWORD=
 ```
 
 Change them before public deployment.
+
+## Customer product requests
+
+Create users with the `OUTDOOR_SALESPERSON` role to submit requests and use
+`INDOOR_STAFF` (or an existing admin/order-manager role) for the incoming request
+dashboard. Apply the migration with `npx prisma migrate deploy` from `server`
+before starting the application.
+
+The API persists notifications and sends them through Socket.IO when running on
+the persistent Node server. Set `VITE_SOCKET_URL` in the client environment to
+that Socket.IO origin. Vercel functions do not hold persistent WebSocket
+connections, so production should point this variable at a separately hosted
+Socket.IO service (or leave it unset and rely on API/FCM delivery).
+
+For FCM, set `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, and
+`FIREBASE_PRIVATE_KEY` only in the backend environment. The private key must
+remain server-side; register browser tokens through
+`POST /api/notifications/register-device`.
 
 ## Oracle MySQL
 The app is not hardcoded to Oracle-specific SQL. It uses standard MySQL through Prisma, so migration to another MySQL provider later is easy.

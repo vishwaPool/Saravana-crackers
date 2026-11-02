@@ -13,6 +13,8 @@ enum UserRole {
   CASHIER
   ORDER_MANAGER
   INVENTORY_MANAGER
+  OUTDOOR_SALESPERSON
+  INDOOR_STAFF
 }
 
 enum OrderStatus {
@@ -82,6 +84,99 @@ model User {
   heldSales    HeldSale[]
   returns      SaleReturn[]
   stockMoves   StockMovement[]
+  createdCustomerRequests CustomerProductRequest[] @relation("RequestCreatedBy")
+  assignedCustomerRequests CustomerProductRequest[] @relation("RequestAssignedTo")
+  requestStatusChanges CustomerProductRequestStatusHistory[]
+  notificationTokens DeviceNotificationToken[]
+  notifications Notification[]
+}
+
+enum CustomerRequestStatus {
+  PENDING
+  ACKNOWLEDGED
+  PROCESSING
+  COMPLETED
+  REJECTED
+}
+
+model CustomerProductRequest {
+  id              Int                    @id @default(autoincrement())
+  requestNumber   String                 @unique
+  customerName    String?
+  notes           String?                @db.Text
+  createdById     Int
+  createdBy       User                   @relation("RequestCreatedBy", fields: [createdById], references: [id])
+  assignedToId    Int?
+  assignedTo      User?                  @relation("RequestAssignedTo", fields: [assignedToId], references: [id])
+  status          CustomerRequestStatus  @default(PENDING)
+  rejectionReason String?                @db.Text
+  acknowledgedAt  DateTime?
+  completedAt     DateTime?
+  items           CustomerProductRequestItem[]
+  statusHistory   CustomerProductRequestStatusHistory[]
+  notifications   Notification[]
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  @@index([createdById, createdAt])
+  @@index([status, createdAt])
+  @@index([assignedToId, status])
+}
+
+model CustomerProductRequestItem {
+  id                 Int                    @id @default(autoincrement())
+  requestId          Int
+  request            CustomerProductRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  productId          Int
+  product            Product                @relation(fields: [productId], references: [id])
+  productNameSnapshot String
+  quantity           Int
+  unit               String
+  notes              String?                @db.Text
+
+  @@index([requestId])
+  @@index([productId])
+}
+
+model CustomerProductRequestStatusHistory {
+  id        Int                    @id @default(autoincrement())
+  requestId Int
+  request   CustomerProductRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  status    CustomerRequestStatus
+  note      String?                @db.Text
+  changedById Int
+  changedBy User                   @relation(fields: [changedById], references: [id])
+  createdAt DateTime               @default(now())
+
+  @@index([requestId, createdAt])
+}
+
+model DeviceNotificationToken {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceToken String   @unique
+  platform   String
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId, isActive])
+}
+
+model Notification {
+  id        Int                    @id @default(autoincrement())
+  userId    Int
+  user      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requestId Int?
+  request   CustomerProductRequest? @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  title     String
+  message   String                 @db.Text
+  isRead    Boolean                @default(false)
+  createdAt DateTime               @default(now())
+
+  @@index([userId, isRead, createdAt])
+  @@index([requestId])
 }
 
 model Category {
@@ -125,6 +220,7 @@ model Product {
   purchaseItems  PurchaseItem[]
   saleItems      SaleItem[]
   returnItems    ReturnItem[]
+  customerRequestItems CustomerProductRequestItem[]
 
   @@index([categoryId])
   @@index([barcode])
