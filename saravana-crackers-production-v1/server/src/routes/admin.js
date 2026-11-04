@@ -86,22 +86,43 @@ router.get("/products", async (_req, res) => {
 
 router.post("/products", async (req, res) => {
   const data = req.body;
+  const name = String(data.name || "").trim();
+  const retailPrice = Number(data.retailPrice);
+  const stock = Number(data.stock);
+  if (!name || !Number.isFinite(retailPrice) || retailPrice < 0 || !Number.isInteger(stock) || stock < 0) {
+    return res.status(400).json({ error: "Product name, retail price, and whole-number stock are required." });
+  }
 
   const product = await prisma.$transaction(async tx => {
+    const category = await tx.category.upsert({
+      where: { slug: "uncategorized" },
+      update: {},
+      create: { name: "Uncategorized", slug: "uncategorized", active: true }
+    });
+    let sku = String(data.sku || "").trim();
+    if (!sku) {
+      const existing = await tx.product.findMany({ where: { sku: { startsWith: "SC-" } }, select: { sku: true } });
+      const used = new Set(existing.map(product => product.sku));
+      let sequence = 1;
+      do {
+        sku = `SC-${String(sequence++).padStart(3, "0")}`;
+      } while (used.has(sku));
+    }
+
     const p = await tx.product.create({
       data: {
-        sku: data.sku,
+        sku,
         barcode: data.barcode || null,
-        name: data.name,
-        slug: slugify(data.name),
-        categoryId: Number(data.categoryId),
+        name,
+        slug: slugify(`${name}-${sku}`),
+        categoryId: category.id,
         description: data.description || null,
         brand: data.brand || null,
-        purchasePrice: Number(data.purchasePrice),
-        mrp: Number(data.mrp),
-        retailPrice: Number(data.retailPrice),
+        purchasePrice: Number(data.purchasePrice || 0),
+        mrp: Number(data.mrp || 0),
+        retailPrice,
         wholesalePrice: data.wholesalePrice ? Number(data.wholesalePrice) : null,
-        stock: Number(data.stock || 0),
+        stock,
         minStock: Number(data.minStock || 0),
         unit: data.unit || "1 Box",
         imageUrl: data.imageUrl || null,
@@ -147,26 +168,31 @@ router.put("/products/:id", async (req, res) => {
   if (!current) return res.status(404).json({ error: "Product not found" });
 
   const data = req.body;
-  const newStock = Number(data.stock || 0);
+  const name = String(data.name || "").trim();
+  const newRetailPrice = Number(data.retailPrice);
+  const newStock = Number(data.stock);
+  if (!name || !Number.isFinite(newRetailPrice) || newRetailPrice < 0 || !Number.isInteger(newStock) || newStock < 0) {
+    return res.status(400).json({ error: "Product name, retail price, and whole-number stock are required." });
+  }
   const delta = newStock - current.stock;
 
   const product = await prisma.$transaction(async tx => {
     const p = await tx.product.update({
       where: { id },
       data: {
-        sku: data.sku,
+        sku: String(data.sku || current.sku).trim(),
         barcode: data.barcode || null,
-        name: data.name,
-        slug: slugify(data.name),
-        categoryId: Number(data.categoryId),
+        name,
+        slug: slugify(`${name}-${current.sku}`),
+        categoryId: current.categoryId,
         description: data.description || null,
         brand: data.brand || null,
-        purchasePrice: Number(data.purchasePrice),
-        mrp: Number(data.mrp),
-        retailPrice: Number(data.retailPrice),
-        wholesalePrice: data.wholesalePrice ? Number(data.wholesalePrice) : null,
+        purchasePrice: data.purchasePrice === "" || data.purchasePrice == null ? current.purchasePrice : Number(data.purchasePrice),
+        mrp: data.mrp === "" || data.mrp == null ? current.mrp : Number(data.mrp),
+        retailPrice: newRetailPrice,
+        wholesalePrice: data.wholesalePrice === "" || data.wholesalePrice == null ? current.wholesalePrice : Number(data.wholesalePrice),
         stock: newStock,
-        minStock: Number(data.minStock || 0),
+        minStock: data.minStock === "" || data.minStock == null ? current.minStock : Number(data.minStock),
         unit: data.unit || "1 Box",
         imageUrl: data.imageUrl || null,
         featured: Boolean(data.featured),

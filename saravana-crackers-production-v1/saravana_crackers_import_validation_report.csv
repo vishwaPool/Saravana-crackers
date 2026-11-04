@@ -1,0 +1,15 @@
+﻿record,status,details
+99,PREVIEW_ONLY,No database writes performed
+99,VALID_NAMES,All product names retained exactly
+99,VALID_PURCHASE_PRICES,All purchase prices are finite and non-negative
+93,SELLING_PRICE_PRESENT,Individual confirmed selling prices retained
+6,SELLING_PRICE_MISSING,Gift Box selling prices pending confirmation
+99,MRP_MISSING,MRP pending confirmation for every row
+6,GIFT_BOX_CATEGORY,Gift Box category assigned to package rows
+93,CATEGORY_MISSING,Individual categories unconfirmed
+99,MINIMUM_STOCK_SET,Minimum stock set to 5
+99,OPENING_STOCK_PENDING,Opening stock cleared pending physical confirmation
+0,DUPLICATE_NAMES,No duplicate product names detected
+99,SKU_PREVIEW,SC-001 through SC-099; production collision check still required
+SCHEMA_BLOCK,REQUIRES_COMPLETION,Product.categoryId, Product.mrp, and Product.retailPrice are mandatory
+NO_SCHEMA_CHANGE,SAFE,No schema or production database changes made

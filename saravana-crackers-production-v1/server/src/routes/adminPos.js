@@ -74,7 +74,7 @@ function parseCsv(text = "") {
     const cells = split(line);
     return {
       line: lineIndex + 2,
-      data: Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ""]))
+      data: Object.fromEntries(headers.map((header, index) => [header.toLowerCase().replace(/[\s_-]+/g, ""), cells[index] ?? ""]))
     };
   });
 }
@@ -190,13 +190,13 @@ router.post("/products/import", requireRole(inventoryRoles), wrap(async (req, re
 
   for (const row of rows) {
     const data = row.data;
-    const required = ["ProductCode", "ProductName", "Category", "PurchasePrice", "SellingPrice", "MRP", "OpeningStock", "MinimumStock"];
+    const required = ["productname", "sellingprice", "openingstock"];
     const missing = required.filter(field => !String(data[field] || "").trim());
-    const purchasePrice = Number(data.PurchasePrice);
-    const sellingPrice = Number(data.SellingPrice);
-    const mrp = Number(data.MRP);
-    const openingStock = Number(data.OpeningStock);
-    const minimumStock = Number(data.MinimumStock);
+    const purchasePrice = data.purchaseprice === "" ? 0 : Number(data.purchaseprice);
+    const sellingPrice = Number(data.sellingprice);
+    const mrp = data.mrp === "" ? 0 : Number(data.mrp);
+    const openingStock = Number(data.openingstock);
+    const minimumStock = data.minimumstock === "" ? 5 : Number(data.minimumstock);
     if (missing.length || [purchasePrice, sellingPrice, mrp, openingStock, minimumStock].some(n => !Number.isFinite(n) || n < 0) || !Number.isInteger(openingStock) || !Number.isInteger(minimumStock)) {
       errors.push({ line: row.line, error: `Invalid row. Missing/invalid: ${missing.join(", ") || "numeric values"}` });
       continue;
@@ -212,38 +212,45 @@ router.post("/products/import", requireRole(inventoryRoles), wrap(async (req, re
   const result = await prisma.$transaction(async tx => {
     let imported = 0;
     for (const item of valid) {
-      const categoryName = String(item.data.Category).trim();
+      const categoryName = String(item.data.category || "Uncategorized").trim();
       let category = categoryByName.get(categoryName.toLowerCase());
       if (!category) {
         category = await tx.category.create({ data: { name: categoryName, slug: slugify(categoryName), active: true } });
         categoryByName.set(category.name.toLowerCase(), category);
       }
-      const existing = await tx.product.findUnique({where:{sku:String(item.data.ProductCode).trim()},select:{id:true}});
+      let sku = String(item.data.productcode || "").trim();
+      if (!sku) {
+        const existingCodes = await tx.product.findMany({ where: { sku: { startsWith: "SC-" } }, select: { sku: true } });
+        const used = new Set(existingCodes.map(product => product.sku));
+        let sequence = 1;
+        do { sku = `SC-${String(sequence++).padStart(3, "0")}`; } while (used.has(sku));
+      }
+      const existing = await tx.product.findUnique({where:{sku},select:{id:true}});
       const product = await tx.product.upsert({
-        where: { sku: String(item.data.ProductCode).trim() },
+        where: { sku },
         update: {
-          name: String(item.data.ProductName).trim(),
+          name: String(item.data.productname).trim(),
           categoryId: category.id,
-          brand: item.data.Brand || null,
+          brand: item.data.brand || null,
           purchasePrice: item.purchasePrice,
           retailPrice: item.sellingPrice,
           mrp: item.mrp,
           minStock: item.minimumStock,
-          barcode: item.data.Barcode || null,
+          barcode: item.data.barcode || null,
           active: true
         },
         create: {
-          sku: String(item.data.ProductCode).trim(),
-          name: String(item.data.ProductName).trim(),
-          slug: slugify(`${item.data.ProductName}-${item.data.ProductCode}`),
+          sku,
+          name: String(item.data.productname).trim(),
+          slug: slugify(`${item.data.productname}-${sku}`),
           categoryId: category.id,
-          brand: item.data.Brand || null,
+          brand: item.data.brand || null,
           purchasePrice: item.purchasePrice,
           retailPrice: item.sellingPrice,
           mrp: item.mrp,
           stock: item.openingStock,
           minStock: item.minimumStock,
-          barcode: item.data.Barcode || null,
+          barcode: item.data.barcode || null,
           active: true
         }
       });
@@ -273,6 +280,7 @@ router.get("/export/:type", wrap(async (req, res) => {
   let rows = [];
   if (req.params.type === "stock") {
     rows = await prisma.product.findMany({ include: { category: true }, orderBy: { name: "asc" } });
+    res.set("Content-Disposition", 'attachment; filename="saravana-crackers-stock.csv"');
     res.type("text/csv").send([
       "ProductCode,ProductName,Category,Brand,PurchasePrice,SellingPrice,MRP,CurrentStock,MinimumStock,Barcode",
       ...rows.map(p => [p.sku, p.name, p.category?.name, p.brand, p.purchasePrice, p.retailPrice, p.mrp, p.stock, p.minStock, p.barcode].map(csvEscape).join(","))
