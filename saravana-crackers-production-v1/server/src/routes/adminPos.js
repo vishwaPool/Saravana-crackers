@@ -66,31 +66,6 @@ function parseCsv(text = "") {
         cell += char;
       }
 
-      function isGiftBoxProduct(name) {
-        return /^(20|25|30|35|40|50)\s+ITEMS$/i.test(String(name).trim());
-      }
-
-      function parseCategoryMappings(value) {
-        if (!value) return new Map();
-        if (typeof value === "object" && !Array.isArray(value)) {
-          return new Map(Object.entries(value).map(([name, category]) => [String(name).trim().toLowerCase(), String(category).trim()]));
-        }
-        return new Map(String(value).split(/\r?\n/).filter(Boolean).map(line => {
-          const separator = line.indexOf("|");
-          if (separator < 1) return ["", ""];
-          return [line.slice(0, separator).trim().toLowerCase(), line.slice(separator + 1).trim()];
-        }).filter(([name, category]) => name && category));
-      }
-
-      function numericField(data, key, label, { integer = false, blank = null } = {}) {
-        const raw = String(data[key] ?? "").trim();
-        if (!raw) return { value: blank };
-        const value = Number(raw);
-        if (!Number.isFinite(value) || value < 0 || (integer && !Number.isInteger(value))) {
-          return { error: `${label} must be a non-negative${integer ? " whole" : ""} number.` };
-        }
-        return { value };
-      }
     }
     cells.push(cell.trim());
     return cells;
@@ -103,6 +78,38 @@ function parseCsv(text = "") {
       data: Object.fromEntries(headers.map((header, index) => [header.toLowerCase().replace(/[\s_-]+/g, ""), cells[index] ?? ""]))
     };
   });
+}
+
+function isGiftBoxProduct(name) {
+  return /^(20|25|30|35|40|50)\s+ITEMS$/i.test(String(name).trim());
+}
+
+function parseCategoryMappings(value) {
+  if (!value) return new Map();
+  if (typeof value === "object" && !Array.isArray(value)) {
+    return new Map(Object.entries(value).map(([name, category]) => [
+      String(name).trim().toLowerCase(),
+      String(category).trim()
+    ]));
+  }
+  return new Map(String(value).split(/\r?\n/).filter(Boolean).map(line => {
+    const separator = line.indexOf("|");
+    if (separator < 1) return ["", ""];
+    return [
+      line.slice(0, separator).trim().toLowerCase(),
+      line.slice(separator + 1).trim()
+    ];
+  }).filter(([name, category]) => name && category));
+}
+
+function numericField(data, key, label, { integer = false, blank = null } = {}) {
+  const raw = String(data[key] ?? "").trim();
+  if (!raw) return { value: blank };
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0 || (integer && !Number.isInteger(value))) {
+    return { error: `${label} must be a non-negative${integer ? " whole" : ""} number.` };
+  }
+  return { value };
 }
 
 router.get("/products/search", wrap(async (req, res) => {

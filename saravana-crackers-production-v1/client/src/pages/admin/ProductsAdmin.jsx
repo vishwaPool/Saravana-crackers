@@ -7,6 +7,33 @@ const blank={sku:"",barcode:"",name:"",purchasePrice:"",mrp:"",retailPrice:"",wh
 const configuredApiUrl=import.meta.env.VITE_API_URL||"http://localhost:4000";
 const base=configuredApiUrl.replace(/\/$/,"").endsWith("/api")?configuredApiUrl.replace(/\/$/,""):`${configuredApiUrl.replace(/\/$/,"")}/api`;
 
+function parseCategoryMappings(value){
+  const mappings={};
+  const errors=[];
+  String(value||"").split(/\r?\n/).forEach((rawLine,index)=>{
+    const line=rawLine.trim();
+    if(!line)return;
+    const separator=line.indexOf("|");
+    if(separator<1||separator===line.length-1||line.indexOf("|",separator+1)!==-1){
+      errors.push(`Mapping line ${index+1} must use exactly Product Name|Category.`);
+      return;
+    }
+    const name=line.slice(0,separator).trim();
+    const category=line.slice(separator+1).trim();
+    if(!name||!category){
+      errors.push(`Mapping line ${index+1} needs both a product name and category.`);
+      return;
+    }
+    const key=name.toLowerCase();
+    if(mappings[key]){
+      errors.push(`Mapping line ${index+1} duplicates product name "${name}".`);
+      return;
+    }
+    mappings[key]=category;
+  });
+  return {mappings,errors};
+}
+
 export default function ProductsAdmin(){const[loadError,setLoadError]=useState("");
   const [products,setProducts]=useState([]);
   const [form,setForm]=useState(blank);
@@ -67,11 +94,18 @@ export default function ProductsAdmin(){const[loadError,setLoadError]=useState("
 
   async function previewImport(){
     if(!csv.trim())throw new Error("Paste product CSV before previewing.");
-    setPreview(await api("/admin/products/import",{method:"POST",body:JSON.stringify({csv,preview:true,categoryMappings,defaultMinimumStock})}));
+    const parsedMappings=parseCategoryMappings(categoryMappings);
+    if(parsedMappings.errors.length){
+      setPreview({totalRows:0,validProducts:0,duplicateProducts:0,invalidProducts:parsedMappings.errors.length,errors:parsedMappings.errors.map(reason=>({line:"mapping",productName:"",reason})),rows:[]});
+      return false;
+    }
+    setPreview(await api("/admin/products/import",{method:"POST",body:JSON.stringify({csv,preview:true,categoryMappings:parsedMappings.mappings,defaultMinimumStock})}));
   }
 
   async function runImport(){
-    const result=await api("/admin/products/import",{method:"POST",body:JSON.stringify({csv,preview:false,categoryMappings,defaultMinimumStock})});
+    const parsedMappings=parseCategoryMappings(categoryMappings);
+    if(parsedMappings.errors.length) throw new Error(parsedMappings.errors.join(" "));
+    const result=await api("/admin/products/import",{method:"POST",body:JSON.stringify({csv,preview:false,categoryMappings:parsedMappings.mappings,defaultMinimumStock})});
     setMessage(`Imported ${result.imported} products. Skipped duplicates: ${result.skipped||0}.`);
     setCsv("");
     setPreview(null);
