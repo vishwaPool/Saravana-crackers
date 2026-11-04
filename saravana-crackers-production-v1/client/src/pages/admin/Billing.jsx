@@ -99,27 +99,33 @@ export default function Billing(){
 
   function addProduct(product){
     if(!product)return;
+    const productId=Number(product.id);
+    if(!Number.isInteger(productId)||productId<=0){
+      setError("Unable to add this product because its database ID is invalid.");
+      return;
+    }
     setShowPreview(false);
-    if(Number(product.stock)<=0){setError(`${product.name} is out of stock.`);focusSearch();return}
+    const stock=Number.isFinite(Number(product.stock))?Number(product.stock):0;
+    const sellingPrice=Number(product.retailPrice??product.sellingPrice);
     setError("");
     setItems(current=>{
-      const existing=current.find(i=>i.productId===product.id);
+      const existing=current.find(i=>i.productId===productId);
       if(existing){
-        if(existing.quantity>=product.stock){
-          setError(`Only ${product.stock} items available in stock.`);
+        if(stock>0&&existing.quantity>=stock){
+          setError(`Only ${stock} items available in stock.`);
           return current;
         }
-        return current.map(i=>i.productId===product.id?{...i,quantity:i.quantity+1}:i);
+        return current.map(i=>i.productId===productId?{...i,quantity:i.quantity+1}:i);
       }
       return [...current,{
-        productId:product.id,
+        productId,
         sku:product.sku,
         name:product.name,
         category:product.category,
-        stock:product.stock,
+        stock,
         minStock:product.minimumStock,
         quantity:1,
-        sellingPrice:product.sellingPrice,
+        sellingPrice:Number.isFinite(sellingPrice)?sellingPrice:0,
         discount:0
       }];
     });
@@ -135,7 +141,7 @@ export default function Billing(){
       next.quantity=Math.max(1,Number(next.quantity||1));
       next.sellingPrice=Math.max(0,Number(next.sellingPrice||0));
       next.discount=Math.max(0,Number(next.discount||0));
-      if(next.quantity>item.stock){
+      if(item.stock>0&&next.quantity>item.stock){
         setError(`Only ${item.stock} items available in stock.`);
         next.quantity=item.stock;
       }
@@ -283,7 +289,7 @@ export default function Billing(){
       <div className="search-box">
         <input ref={searchRef} className="pos-search" value={q} onChange={e=>{setQ(e.target.value);if(e.target.value.length)setShowPreview(false)}} onKeyDown={onSearchKey} placeholder="Search crackers by name, code or category..." />
         {results.length>0&&<div className="suggestions">{results.map((p,i)=>
-          <button key={p.id} className={i===selected?"active":""} onMouseDown={e=>{e.preventDefault();addProduct(p)}}>
+          <button type="button" key={p.id} className={i===selected?"active":""} onClick={()=>addProduct(p)}>
             <b>{p.name}</b><span>{p.sku} - {p.category} - Stock {p.stock}</span><strong>Rs. {money(p.sellingPrice)}</strong>
           </button>
         )}</div>}
