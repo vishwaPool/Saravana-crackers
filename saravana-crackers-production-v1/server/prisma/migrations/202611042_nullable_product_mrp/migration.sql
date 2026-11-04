@@ -1,0 +1,1 @@
+ALTER TABLE `Product` MODIFY `mrp` DECIMAL(12, 2) NULL;

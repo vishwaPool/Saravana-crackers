@@ -78,7 +78,7 @@ router.get("/products", async (_req, res) => {
   res.json(products.map(p => ({
     ...p,
     purchasePrice: Number(p.purchasePrice),
-    mrp: Number(p.mrp),
+    mrp: p.mrp == null ? null : Number(p.mrp),
     retailPrice: Number(p.retailPrice),
     wholesalePrice: p.wholesalePrice ? Number(p.wholesalePrice) : null
   })));

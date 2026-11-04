@@ -163,7 +163,7 @@ export async function searchProducts(query) {
       purchasePrice: Number(product.purchasePrice),
       sellingPrice: Number(product.retailPrice),
       retailPrice: Number(product.retailPrice),
-      mrp: Number(product.mrp),
+      mrp: product.mrp == null ? null : Number(product.mrp),
       currentStock: product.stock,
       stock: product.stock,
       minimumStock: product.minStock,
@@ -183,7 +183,7 @@ export async function getProduct(id) {
     sellingPrice: Number(product.retailPrice),
     purchasePrice: Number(product.purchasePrice),
     retailPrice: Number(product.retailPrice),
-    mrp: Number(product.mrp),
+    mrp: product.mrp == null ? null : Number(product.mrp),
     wholesalePrice: product.wholesalePrice ? Number(product.wholesalePrice) : null
   };
 }

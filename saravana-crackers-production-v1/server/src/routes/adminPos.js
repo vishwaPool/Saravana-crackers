@@ -65,6 +65,32 @@ function parseCsv(text = "") {
       } else {
         cell += char;
       }
+
+      function isGiftBoxProduct(name) {
+        return /^(20|25|30|35|40|50)\s+ITEMS$/i.test(String(name).trim());
+      }
+
+      function parseCategoryMappings(value) {
+        if (!value) return new Map();
+        if (typeof value === "object" && !Array.isArray(value)) {
+          return new Map(Object.entries(value).map(([name, category]) => [String(name).trim().toLowerCase(), String(category).trim()]));
+        }
+        return new Map(String(value).split(/\r?\n/).filter(Boolean).map(line => {
+          const separator = line.indexOf("|");
+          if (separator < 1) return ["", ""];
+          return [line.slice(0, separator).trim().toLowerCase(), line.slice(separator + 1).trim()];
+        }).filter(([name, category]) => name && category));
+      }
+
+      function numericField(data, key, label, { integer = false, blank = null } = {}) {
+        const raw = String(data[key] ?? "").trim();
+        if (!raw) return { value: blank };
+        const value = Number(raw);
+        if (!Number.isFinite(value) || value < 0 || (integer && !Number.isInteger(value))) {
+          return { error: `${label} must be a non-negative${integer ? " whole" : ""} number.` };
+        }
+        return { value };
+      }
     }
     cells.push(cell.trim());
     return cells;
@@ -183,66 +209,102 @@ router.get("/reports/category-sales", wrap(async (_req, res) => {
 router.post("/products/import", requireRole(inventoryRoles), wrap(async (req, res) => {
   const rows = parseCsv(req.body.csv);
   if (!rows.length) return res.status(400).json({error:"Paste a CSV header and at least one product row."});
-  const categories = await prisma.category.findMany();
+  const categories = await prisma.category.findMany({ select: { id: true, name: true, slug: true } });
   const categoryByName = new Map(categories.map(category => [category.name.toLowerCase(), category]));
+  const existingProducts = await prisma.product.findMany({ select: { id: true, sku: true, name: true } });
+  const existingBySku = new Map(existingProducts.map(product => [product.sku.toLowerCase(), product]));
+  const existingByName = new Map(existingProducts.map(product => [product.name.trim().toLowerCase(), product]));
+  const usedSkus = new Set(existingProducts.map(product => product.sku.toLowerCase()));
+  const categoryMappings = parseCategoryMappings(req.body.categoryMappings);
+  const defaultMinimumStock = Number.isFinite(Number(req.body.defaultMinimumStock)) && Number(req.body.defaultMinimumStock) >= 0
+    ? Number(req.body.defaultMinimumStock)
+    : 5;
   const valid = [];
   const errors = [];
+  const duplicates = [];
+  const previewRows = [];
+  const seenSkus = new Set();
+  const seenNames = new Set();
+  let nextSku = 1;
+  const allocateSku = () => {
+    let sku;
+    do { sku = `SC-${String(nextSku++).padStart(3, "0")}`; } while (usedSkus.has(sku.toLowerCase()));
+    usedSkus.add(sku.toLowerCase());
+    return sku;
+  };
 
   for (const row of rows) {
     const data = row.data;
-    const required = ["productname", "sellingprice", "openingstock"];
-    const missing = required.filter(field => !String(data[field] || "").trim());
-    const purchasePrice = data.purchaseprice === "" ? 0 : Number(data.purchaseprice);
-    const sellingPrice = Number(data.sellingprice);
-    const mrp = data.mrp === "" ? 0 : Number(data.mrp);
-    const openingStock = Number(data.openingstock);
-    const minimumStock = data.minimumstock === "" ? 5 : Number(data.minimumstock);
-    if (missing.length || [purchasePrice, sellingPrice, mrp, openingStock, minimumStock].some(n => !Number.isFinite(n) || n < 0) || !Number.isInteger(openingStock) || !Number.isInteger(minimumStock)) {
-      errors.push({ line: row.line, error: `Invalid row. Missing/invalid: ${missing.join(", ") || "numeric values"}` });
+    const productName = String(data.productname || "").trim();
+    const reasons = [];
+    if (!productName) reasons.push("ProductName is required.");
+    const purchase = numericField(data, "purchaseprice", "PurchasePrice", { blank: 0 });
+    const selling = numericField(data, "sellingprice", "SellingPrice");
+    const mrpField = numericField(data, "mrp", "MRP");
+    const stock = numericField(data, "openingstock", "OpeningStock", { integer: true, blank: 0 });
+    const minimum = numericField(data, "minimumstock", "MinimumStock", { integer: true, blank: defaultMinimumStock });
+    for (const field of [purchase, selling, mrpField, stock, minimum]) if (field.error) reasons.push(field.error);
+    if (selling.value == null) reasons.push("SellingPrice is required.");
+
+    let sku = String(data.productcode || "").trim();
+    if (!sku) sku = allocateSku();
+    const skuKey = sku.toLowerCase();
+    const nameKey = productName.toLowerCase();
+    if (seenSkus.has(skuKey)) reasons.push(`ProductCode ${sku} is duplicated in the CSV.`);
+    if (seenNames.has(nameKey)) reasons.push("ProductName is duplicated in the CSV.");
+    seenSkus.add(skuKey);
+    seenNames.add(nameKey);
+    const existingSku = existingBySku.get(sku.toLowerCase());
+    const existingName = existingByName.get(productName.toLowerCase());
+    if (existingSku && existingSku.name.trim().toLowerCase() !== productName.toLowerCase()) {
+      reasons.push(`ProductCode ${sku} already belongs to "${existingSku.name}".`);
+    } else if (existingSku || existingName) {
+      duplicates.push({ line: row.line, productName, sku, reason: existingSku ? "Product code already exists." : "Product name already exists." });
+    }
+
+    const categoryName = isGiftBoxProduct(productName)
+      ? "Gift Box"
+      : String(data.category || "").trim() || categoryMappings.get(productName.toLowerCase()) || "";
+    if (!categoryName) reasons.push("Category is required; add it to the CSV or category mapping.");
+
+    if (reasons.length) {
+      const error = { line: row.line, productName, reason: reasons.join(" ") };
+      errors.push(error);
+      previewRows.push({ line: row.line, productName, sku, status: "invalid", reason: error.reason });
       continue;
     }
-    valid.push({ data, purchasePrice, sellingPrice, mrp, openingStock, minimumStock });
+    valid.push({ data, productName, sku, categoryName, purchasePrice: purchase.value, sellingPrice: selling.value, mrp: mrpField.value, openingStock: stock.value, minimumStock: minimum.value, duplicate: Boolean(existingSku || existingName) });
+    previewRows.push({ line: row.line, productName, sku, category: categoryName, status: existingSku || existingName ? "duplicate" : "valid" });
   }
 
   if (req.body.preview !== false) {
-    return res.json({ validProducts: valid.length, errors });
+    return res.json({
+      totalRows: rows.length,
+      validProducts: valid.filter(item => !item.duplicate).length,
+      duplicateProducts: duplicates.length,
+      invalidProducts: errors.length,
+      errors,
+      duplicates,
+      rows: previewRows
+    });
   }
 
   if (errors.length) return res.status(400).json({error:"Correct all CSV errors before importing.",errors});
   const result = await prisma.$transaction(async tx => {
     let imported = 0;
     for (const item of valid) {
-      const categoryName = String(item.data.category || "Uncategorized").trim();
+      if (item.duplicate) continue;
+      const categoryName = item.categoryName;
       let category = categoryByName.get(categoryName.toLowerCase());
       if (!category) {
         category = await tx.category.create({ data: { name: categoryName, slug: slugify(categoryName), active: true } });
         categoryByName.set(category.name.toLowerCase(), category);
       }
-      let sku = String(item.data.productcode || "").trim();
-      if (!sku) {
-        const existingCodes = await tx.product.findMany({ where: { sku: { startsWith: "SC-" } }, select: { sku: true } });
-        const used = new Set(existingCodes.map(product => product.sku));
-        let sequence = 1;
-        do { sku = `SC-${String(sequence++).padStart(3, "0")}`; } while (used.has(sku));
-      }
-      const existing = await tx.product.findUnique({where:{sku},select:{id:true}});
-      const product = await tx.product.upsert({
-        where: { sku },
-        update: {
-          name: String(item.data.productname).trim(),
-          categoryId: category.id,
-          brand: item.data.brand || null,
-          purchasePrice: item.purchasePrice,
-          retailPrice: item.sellingPrice,
-          mrp: item.mrp,
-          minStock: item.minimumStock,
-          barcode: item.data.barcode || null,
-          active: true
-        },
-        create: {
-          sku,
-          name: String(item.data.productname).trim(),
-          slug: slugify(`${item.data.productname}-${sku}`),
+      const product = await tx.product.create({
+        data: {
+          sku: item.sku,
+          name: item.productName,
+          slug: slugify(`${item.productName}-${item.sku}`),
           categoryId: category.id,
           brand: item.data.brand || null,
           purchasePrice: item.purchasePrice,
@@ -254,7 +316,16 @@ router.post("/products/import", requireRole(inventoryRoles), wrap(async (req, re
           active: true
         }
       });
-      if (!existing && item.openingStock > 0) {
+      if (item.openingStock > 0) {
+        await tx.stockTransaction.create({
+          data: {
+            productId: product.id,
+            type: "OPENING",
+            quantity: item.openingStock,
+            reference: "CSV_IMPORT",
+            note: "Opening stock imported from CSV"
+          }
+        });
         await tx.stockMovement.create({
           data: {
             productId: product.id,
@@ -263,7 +334,7 @@ router.post("/products/import", requireRole(inventoryRoles), wrap(async (req, re
             previousStock: 0,
             newStock: item.openingStock,
             referenceType: "IMPORT",
-            referenceId: "CSV",
+            referenceId: "CSV_IMPORT",
             createdById: req.user?.id || null
           }
         });
@@ -273,7 +344,7 @@ router.post("/products/import", requireRole(inventoryRoles), wrap(async (req, re
     return imported;
   });
 
-  res.status(201).json({ imported: result, errors });
+  res.status(201).json({ imported: result, skipped: duplicates.length, errors: [], duplicates });
 }));
 
 router.get("/export/:type", wrap(async (req, res) => {

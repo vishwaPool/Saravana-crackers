@@ -14,6 +14,8 @@ export default function ProductsAdmin(){const[loadError,setLoadError]=useState("
   const [csv,setCsv]=useState("");
   const [preview,setPreview]=useState(null);
   const [message,setMessage]=useState("");
+  const [categoryMappings,setCategoryMappings]=useState("");
+  const [defaultMinimumStock,setDefaultMinimumStock]=useState("5");
 
   const load=()=>api("/admin/products").then(setProducts).catch(e=>setLoadError(e.message));
   useEffect(()=>{load()},[]);
@@ -22,6 +24,11 @@ export default function ProductsAdmin(){const[loadError,setLoadError]=useState("
   function chooseFile(e){
     const file=e.target.files?.[0];
     if(!file)return;
+    if(!file.name.toLowerCase().endsWith(".csv")){
+      setMessage("CSV files only. XLSX files are not supported by this importer.");
+      e.target.value="";
+      return;
+    }
     const reader=new FileReader();
     reader.onload=()=>{setCsv(String(reader.result||""));setPreview(null)};
     reader.onerror=()=>setMessage("Unable to read the selected CSV file.");
@@ -60,12 +67,12 @@ export default function ProductsAdmin(){const[loadError,setLoadError]=useState("
 
   async function previewImport(){
     if(!csv.trim())throw new Error("Paste product CSV before previewing.");
-    setPreview(await api("/admin/products/import",{method:"POST",body:JSON.stringify({csv,preview:true})}));
+    setPreview(await api("/admin/products/import",{method:"POST",body:JSON.stringify({csv,preview:true,categoryMappings,defaultMinimumStock})}));
   }
 
   async function runImport(){
-    const result=await api("/admin/products/import",{method:"POST",body:JSON.stringify({csv,preview:false})});
-    setMessage(`Imported ${result.imported} products.`);
+    const result=await api("/admin/products/import",{method:"POST",body:JSON.stringify({csv,preview:false,categoryMappings,defaultMinimumStock})});
+    setMessage(`Imported ${result.imported} products. Skipped duplicates: ${result.skipped||0}.`);
     setCsv("");
     setPreview(null);
     load();
@@ -85,9 +92,12 @@ export default function ProductsAdmin(){const[loadError,setLoadError]=useState("
     <div className="panel form">
       <h2>Import Products CSV</h2>
       <input className="input" type="file" accept=".csv,text/csv" onChange={chooseFile}/>
-      <textarea className="input csv-box" value={csv} onChange={e=>{setCsv(e.target.value);setPreview(null)}} placeholder="ProductCode,ProductName,Category,Brand,PurchasePrice,SellingPrice,MRP,OpeningStock,MinimumStock,Barcode (ProductName, SellingPrice and OpeningStock are required)"/>
+      <label>Default minimum stock when CSV is blank<input className="input" type="number" min="0" step="1" value={defaultMinimumStock} onChange={e=>{setDefaultMinimumStock(e.target.value);setPreview(null)}}/></label>
+      <label>Category mappings (one per line: <code>Product Name|Category</code>)<textarea className="input" value={categoryMappings} onChange={e=>{setCategoryMappings(e.target.value);setPreview(null)}} placeholder={'Example Product|Sparklers'}/></label>
+      <textarea className="input csv-box" value={csv} onChange={e=>{setCsv(e.target.value);setPreview(null)}} placeholder="ProductCode,ProductName,Category,Brand,PurchasePrice,SellingPrice,MRP,OpeningStock,MinimumStock,Barcode (only ProductName and SellingPrice are required; blank stock becomes 0)"/>
       <div className="row"><AsyncButton className="btn ghost" onClick={previewImport}>Preview Import</AsyncButton><AsyncButton className="btn" onClick={runImport} disabled={!preview||!preview.validProducts||preview.errors?.length}>Import Valid Products</AsyncButton><AsyncButton className="btn ghost" onClick={exportStock}>Export Stock CSV</AsyncButton></div>
-      {preview&&<div className="alert">Valid Products: {preview.validProducts}. Errors: {preview.errors.length}</div>}
+      {preview&&<div className="alert">Detected: {preview.totalRows}. Valid: {preview.validProducts}. Duplicates: {preview.duplicateProducts||0}. Errors: {preview.invalidProducts||preview.errors.length}</div>}
+      {preview?.errors?.length>0&&<div className="table"><table><thead><tr><th>Row</th><th>Product</th><th>Reason</th></tr></thead><tbody>{preview.errors.map(error=><tr key={`${error.line}-${error.productName}`}><td>{error.line}</td><td>{error.productName||"(blank)"}</td><td>{error.reason||error.error}</td></tr>)}</tbody></table></div>}
       {message&&<div className="alert">{message}</div>}
     </div>
 

@@ -15,7 +15,7 @@ export const publicProduct = p => ({
   description: p.description,
   category: p.category,
   brand: p.brand,
-  mrp: Number(p.mrp),
+  mrp: p.mrp == null ? null : Number(p.mrp),
   retailPrice: Number(p.retailPrice),
   wholesalePrice: p.wholesalePrice ? Number(p.wholesalePrice) : null,
   stock: p.stock,
