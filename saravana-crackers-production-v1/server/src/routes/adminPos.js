@@ -297,61 +297,91 @@ router.post("/products/import", requireRole(inventoryRoles), wrap(async (req, re
   }
 
   if (errors.length) return res.status(400).json({error:"Correct all CSV errors before importing.",errors});
-  const result = await prisma.$transaction(async tx => {
-    let imported = 0;
-    for (const item of valid) {
-      if (item.duplicate) continue;
-      const categoryName = item.categoryName;
-      let category = categoryByName.get(categoryName.toLowerCase());
-      if (!category) {
-        category = await tx.category.create({ data: { name: categoryName, slug: slugify(categoryName), active: true } });
-        categoryByName.set(category.name.toLowerCase(), category);
-      }
-      const product = await tx.product.create({
-        data: {
-          sku: item.sku,
-          name: item.productName,
-          slug: slugify(`${item.productName}-${item.sku}`),
-          categoryId: category.id,
-          brand: item.data.brand || null,
-          purchasePrice: item.purchasePrice,
-          retailPrice: item.sellingPrice,
-          mrp: item.mrp,
-          stock: item.openingStock,
-          minStock: item.minimumStock,
-          barcode: item.data.barcode || null,
-          active: true
+  let currentItem = null;
+  try {
+    const result = await prisma.$transaction(async tx => {
+      let imported = 0;
+      for (const item of valid) {
+        if (item.duplicate) continue;
+        currentItem = item;
+        const categoryName = item.categoryName;
+        let category = categoryByName.get(categoryName.toLowerCase());
+        if (!category) {
+          category = await tx.category.create({ data: { name: categoryName, slug: slugify(categoryName), active: true } });
+          categoryByName.set(category.name.toLowerCase(), category);
         }
-      });
-      if (item.openingStock > 0) {
-        await tx.stockTransaction.create({
+        const product = await tx.product.create({
           data: {
-            productId: product.id,
-            type: "OPENING",
-            quantity: item.openingStock,
-            reference: "CSV_IMPORT",
-            note: "Opening stock imported from CSV"
+            sku: item.sku,
+            name: item.productName,
+            slug: slugify(`${item.productName}-${item.sku}`),
+            categoryId: category.id,
+            brand: item.data.brand || null,
+            purchasePrice: item.purchasePrice,
+            retailPrice: item.sellingPrice,
+            mrp: item.mrp,
+            stock: item.openingStock,
+            minStock: item.minimumStock,
+            barcode: item.data.barcode || null,
+            active: true
           }
         });
-        await tx.stockMovement.create({
-          data: {
-            productId: product.id,
-            type: "OPENING_STOCK",
-            quantity: item.openingStock,
-            previousStock: 0,
-            newStock: item.openingStock,
-            referenceType: "IMPORT",
-            referenceId: "CSV_IMPORT",
-            createdById: req.user?.id || null
-          }
-        });
+        if (item.openingStock > 0) {
+          await tx.stockTransaction.create({
+            data: {
+              productId: product.id,
+              type: "OPENING",
+              quantity: item.openingStock,
+              reference: "CSV_IMPORT",
+              note: "Opening stock imported from CSV"
+            }
+          });
+          await tx.stockMovement.create({
+            data: {
+              productId: product.id,
+              type: "OPENING_STOCK",
+              quantity: item.openingStock,
+              previousStock: 0,
+              newStock: item.openingStock,
+              referenceType: "IMPORT",
+              referenceId: "CSV_IMPORT",
+              createdById: req.user?.id || null
+            }
+          });
+        }
+        imported++;
       }
-      imported++;
-    }
-    return imported;
-  });
+      return imported;
+    });
 
-  res.status(201).json({ imported: result, skipped: duplicates.length, errors: [], duplicates });
+    res.status(201).json({ imported: result, skipped: duplicates.length, errors: [], duplicates });
+  } catch (error) {
+    const code = error.code || error.errorCode || "UNKNOWN";
+    const meta = error.meta || null;
+    console.error("Product CSV import database failure", {
+      code,
+      meta,
+      message: error.message,
+      row: currentItem ? { line: currentItem.data?.line, productName: currentItem.productName, sku: currentItem.sku } : null
+    });
+    const migrationRequired = code === "P2011" || code === "P2022";
+    const duplicate = code === "P2002";
+    const status = migrationRequired ? 409 : duplicate ? 409 : 500;
+    const message = migrationRequired
+      ? "Product import requires the pending database migration for nullable MRP. No products were imported."
+      : duplicate
+        ? "Product import found a duplicate SKU or slug while writing. No products were imported."
+        : "Product import failed and was rolled back. No products were imported.";
+    return res.status(status).json({
+      error: message,
+      importError: {
+        code,
+        meta,
+        message: error.message,
+        row: currentItem ? { productName: currentItem.productName, sku: currentItem.sku } : null
+      }
+    });
+  }
 }));
 
 router.get("/export/:type", wrap(async (req, res) => {

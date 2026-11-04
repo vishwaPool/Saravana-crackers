@@ -9,6 +9,11 @@ export async function api(path, options = {}) {
     headers: { "Content-Type": "application/json", ...(options.headers || {}) }
   });
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.error || "Request failed");
+  if (!r.ok) {
+    const detail = data.importError
+      ? ` [${data.importError.code}]${data.importError.message ? ` ${data.importError.message}` : ""}`
+      : "";
+    throw new Error(`${data.error || "Request failed"}${detail}`);
+  }
   return data;
 }
