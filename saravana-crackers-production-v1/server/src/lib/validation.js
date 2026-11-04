@@ -15,11 +15,16 @@ export function validateInput(path, method, body = {}) {
   }
   if (method === "POST" && ["/categories", "/suppliers"].includes(path)) requireText("name", "Name");
   if (["POST", "PUT"].includes(method) && /^\/products(?:\/\d+)?$/.test(path)) {
-    requireText("sku", "Product code"); requireText("name", "Product name");
-    requireNumber("categoryId", 1, true);
-    for (const key of ["purchasePrice", "mrp", "retailPrice"]) requireNumber(key);
-    for (const key of ["stock", "minStock"]) if (present(body[key])) requireNumber(key, 0, true);
-    if (present(body.wholesalePrice)) requireNumber("wholesalePrice");
+    requireText("name", "Product name");
+    requireNumber("retailPrice");
+    requireNumber("stock", 0, true);
+    for (const key of ["categoryId"]) if (present(body[key])) requireNumber(key, 1, true);
+    for (const key of ["sku", "purchasePrice", "mrp", "minStock", "wholesalePrice"]) {
+      if (present(body[key])) {
+        if (key === "sku") requireText(key, "Product code");
+        else requireNumber(key, 0, ["minStock"].includes(key));
+      }
+    }
   }
   if (method === "POST" && path === "/offers") {
     requireText("title", "Offer title"); requireNumber("value", 0.01);

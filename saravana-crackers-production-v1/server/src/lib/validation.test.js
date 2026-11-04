@@ -26,10 +26,11 @@ test("blank physical stock is rejected while explicit zero is accepted",()=>{
   assert.ok(validateInput("/stock/adjust","POST",{...adjustment,physicalStock:""}).length);
   assert.ok(validateInput("/stock/adjust","POST",{...adjustment,reason:" "}).length);
 });
-test("products require identity, category and valid prices",()=>{
-  const product={sku:"A",name:"Sparkler",categoryId:1,purchasePrice:0,mrp:10,retailPrice:8};
+test("products require name, retail price and whole-number stock",()=>{
+  const product={name:"Sparkler",purchasePrice:0,mrp:10,retailPrice:8,stock:0};
   assert.deepEqual(validateInput("/products","POST",product),[]);
-  for(const patch of [{sku:" "},{categoryId:""},{retailPrice:-1},{purchasePrice:""},{stock:1.5}]) assert.ok(validateInput("/products/1","PUT",{...product,...patch}).length);
+  assert.deepEqual(validateInput("/products/1","PUT",{...product,categoryId:""}),[]);
+  for(const patch of [{retailPrice:-1},{stock:1.5}]) assert.ok(validateInput("/products/1","PUT",{...product,...patch}).length);
 });
 test("offers reject reversed dates and percentages above 100",()=>{
   const offer={title:"Festival",type:"PERCENTAGE",value:10,startAt:"2026-09-01",endAt:"2026-09-30"};
