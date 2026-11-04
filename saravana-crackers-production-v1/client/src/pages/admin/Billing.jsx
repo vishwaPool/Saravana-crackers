@@ -13,6 +13,7 @@ const emptyCustomer={name:"",mobile:"",address:""};
 export default function Billing(){
   const {run,pending,error:actionError}=useAsyncAction();
   const searchRef=useRef(null);
+  const searchRequestRef=useRef(0);
   const submittedBill=useRef(null);
   const [showPreview,setShowPreview]=useState(false);
   const [q,setQ]=useState("");
@@ -72,9 +73,10 @@ export default function Billing(){
   useEffect(()=>{
     let live=true;
     const text=q.trim();
+    const requestId=++searchRequestRef.current;
     if(!text){setResults([]);return}
     api(`/admin/products/search?q=${encodeURIComponent(text)}`).then(data=>{
-      if(live){setResults(data);setSelected(0)}
+      if(live&&requestId===searchRequestRef.current){setResults(data);setSelected(0)}
     }).catch(e=>live&&setError(e.message));
     return()=>{live=false};
   },[q]);
@@ -98,7 +100,7 @@ export default function Billing(){
   function addProduct(product){
     if(!product)return;
     setShowPreview(false);
-    if(product.stock<=0){setError("OUT OF STOCK");focusSearch();return}
+    if(Number(product.stock)<=0){setError(`${product.name} is out of stock.`);focusSearch();return}
     setError("");
     setItems(current=>{
       const existing=current.find(i=>i.productId===product.id);
@@ -211,10 +213,27 @@ export default function Billing(){
   const loadHeld=()=>run(loadHeldImpl);
   const resumeHeld=bill=>run(()=>resumeHeldImpl(bill));
 
-  function onSearchKey(e){
+  async function onSearchKey(e){
     if(e.key==="ArrowDown"){e.preventDefault();setSelected(i=>Math.min(i+1,results.length-1))}
     if(e.key==="ArrowUp"){e.preventDefault();setSelected(i=>Math.max(i-1,0))}
-    if(e.key==="Enter"){e.preventDefault();addProduct(results[selected])}
+    if(e.key==="Enter"){
+      e.preventDefault();
+      const text=q.trim();
+      if(!text)return;
+      let product=results[selected];
+      if(!product){
+        try{
+          const matches=await api(`/admin/products/search?q=${encodeURIComponent(text)}`);
+          const needle=text.toLowerCase();
+          product=matches.find(item=>[item.sku,item.barcode,item.name].some(value=>String(value||"").toLowerCase()===needle))||matches[0];
+        }catch(error){
+          setError(error.message);
+          return;
+        }
+      }
+      if(product)addProduct(product);
+      else setError(`No product found for "${text}".`);
+    }
   }
 
   useEffect(()=>{
