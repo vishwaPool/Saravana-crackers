@@ -1,6 +1,6 @@
 import AsyncButton from "../../components/AsyncButton";
 import ActionForm from "../../components/ActionForm";
-import {useEffect,useState} from "react";
+import {useEffect,useMemo,useState} from "react";
 import {api} from "../../api";
 
 const blank={sku:"",barcode:"",name:"",purchasePrice:"",mrp:"",retailPrice:"",wholesalePrice:"",stock:"",minStock:"",unit:"1 Box",brand:"",description:"",imageUrl:"",featured:false,active:true};
@@ -43,10 +43,18 @@ export default function ProductsAdmin(){const[loadError,setLoadError]=useState("
   const [message,setMessage]=useState("");
   const [categoryMappings,setCategoryMappings]=useState("");
   const [defaultMinimumStock,setDefaultMinimumStock]=useState("5");
+  const [search,setSearch]=useState("");
+  const [page,setPage]=useState(1);
+  const pageSize=25;
 
-  const load=()=>api("/admin/products").then(setProducts).catch(e=>setLoadError(e.message));
-  useEffect(()=>{load()},[]);
+  const load=(query=search)=>api(`/admin/products${query.trim()?`?q=${encodeURIComponent(query.trim())}`:""}`).then(data=>{setProducts(data);setPage(1)}).catch(e=>setLoadError(e.message));
+  useEffect(()=>{
+    const timer=setTimeout(()=>load(search),250);
+    return()=>clearTimeout(timer);
+  },[search]);
   const set=(k,v)=>setForm(x=>({...x,[k]:v}));
+  const visibleProducts=useMemo(()=>products.slice((page-1)*pageSize,page*pageSize),[products,page]);
+  const pageCount=Math.max(1,Math.ceil(products.length/pageSize));
 
   function chooseFile(e){
     const file=e.target.files?.[0];
@@ -82,7 +90,7 @@ export default function ProductsAdmin(){const[loadError,setLoadError]=useState("
     await api(id?`/admin/products/${id}`:"/admin/products",{method:id?"PUT":"POST",body:JSON.stringify(form)});
     setForm(blank);
     setId(null);
-    load();
+    load(search);
   }
 
   function edit(product){
@@ -109,7 +117,7 @@ export default function ProductsAdmin(){const[loadError,setLoadError]=useState("
     setMessage(`Imported ${result.imported} products. Skipped duplicates: ${result.skipped||0}.`);
     setCsv("");
     setPreview(null);
-    load();
+    load(search);
   }
 
   return <>
@@ -135,8 +143,20 @@ export default function ProductsAdmin(){const[loadError,setLoadError]=useState("
       {message&&<div className="alert">{message}</div>}
     </div>
 
-    <div className="table">
-      <table><thead><tr><th>Code</th><th>Barcode</th><th>Name</th><th>Category</th><th>Retail</th><th>Stock</th><th>Status</th><th></th></tr></thead><tbody>{products.map(x=><tr key={x.id}><td>{x.sku}</td><td>{x.barcode}</td><td>{x.name}</td><td>{x.category?.name}</td><td>Rs. {x.retailPrice}</td><td>{x.stock}</td><td>{x.active?"Active":"Inactive"}</td><td><button onClick={()=>edit(x)}>Edit</button></td></tr>)}</tbody></table>
+    <div className="panel product-list-panel">
+      <div className="product-search-row">
+        <label className="product-search-label" htmlFor="product-management-search">Search products</label>
+        <div className="product-search-box">
+          <input id="product-management-search" className="input" type="search" value={search} onChange={e=>{setSearch(e.target.value);setPage(1)}} placeholder="Search by name, SKU, barcode, brand or category..." />
+          {search&&<button type="button" className="product-search-clear" aria-label="Clear product search" onClick={()=>{setSearch("");setPage(1)}}>×</button>}
+        </div>
+        <span className="product-match-count">{products.length} {products.length===1?"product":"products"} found</span>
+      </div>
+      <div className="table">
+        <table><thead><tr><th>Code</th><th>Barcode</th><th>Name</th><th>Category</th><th>Retail</th><th>Stock</th><th>Status</th><th></th></tr></thead><tbody>{visibleProducts.map(x=><tr key={x.id}><td>{x.sku}</td><td>{x.barcode||"—"}</td><td><b>{x.name}</b>{x.brand&&<small className="product-brand">{x.brand}</small>}</td><td>{x.category?.name||"—"}</td><td>Rs. {x.retailPrice}</td><td>{x.stock}</td><td>{x.active?"Active":"Inactive"}</td><td><button onClick={()=>edit(x)}>Edit</button></td></tr>)}</tbody></table>
+        {!visibleProducts.length&&<p className="empty">No products found</p>}
+      </div>
+      {products.length>0&&<div className="product-pagination"><button type="button" className="btn ghost" disabled={page<=1} onClick={()=>setPage(value=>value-1)}>Previous</button><span>Page {page} of {pageCount}</span><button type="button" className="btn ghost" disabled={page>=pageCount} onClick={()=>setPage(value=>value+1)}>Next</button></div>}
     </div>
   </>;
 }

@@ -69,8 +69,18 @@ router.post("/categories", async (req, res) => {
   res.status(201).json(category);
 });
 
-router.get("/products", async (_req, res) => {
+router.get("/products", async (req, res) => {
+  const search = String(req.query.q || "").trim();
   const products = await prisma.product.findMany({
+    where: search ? {
+      OR: [
+        { name: { contains: search } },
+        { sku: { contains: search } },
+        { barcode: { contains: search } },
+        { brand: { contains: search } },
+        { category: { name: { contains: search } } }
+      ]
+    } : undefined,
     include: { category: true },
     orderBy: { updatedAt: "desc" }
   });
