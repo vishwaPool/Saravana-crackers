@@ -19,6 +19,8 @@ export default function Billing(){
   const [q,setQ]=useState("");
   const [results,setResults]=useState([]);
   const [selected,setSelected]=useState(0);
+  const [quantityProduct,setQuantityProduct]=useState(null);
+  const [quantity,setQuantity]=useState("1");
   const [items,setItems]=useState([]);
   const [customer,setCustomer]=useState(emptyCustomer);
   const [showCustomer,setShowCustomer]=useState(false);
@@ -33,6 +35,7 @@ export default function Billing(){
   const [pendingRequests,setPendingRequests]=useState([]);
   const [showRequestNotifications,setShowRequestNotifications]=useState(false);
   const [expandedRequest,setExpandedRequest]=useState(null);
+  const quantityInputRef=useRef(null);
   const notificationRef=useRef(null);
   const navigate=useNavigate();
 
@@ -97,40 +100,74 @@ export default function Billing(){
     requestAnimationFrame(()=>searchRef.current?.focus());
   }
 
-  function addProduct(product){
+  useEffect(()=>{
+    if(!quantityProduct)return;
+    requestAnimationFrame(()=>{
+      quantityInputRef.current?.focus();
+      quantityInputRef.current?.select();
+    });
+  },[quantityProduct]);
+
+  function openQuantityPopup(product){
     if(!product)return;
     const productId=Number(product.id);
     if(!Number.isInteger(productId)||productId<=0){
       setError("Unable to add this product because its database ID is invalid.");
       return;
     }
-    setShowPreview(false);
+    setError("");
+    setQuantity("1");
+    setQuantityProduct(product);
+    setResults([]);
+  }
+
+  function closeQuantityPopup(){
+    setQuantityProduct(null);
+    setQuantity("1");
+    focusSearch();
+  }
+
+  function addProductToBill(){
+    if(!quantityProduct)return;
+    const parsed=Number(quantity);
+    if(!/^\d+$/.test(String(quantity).trim())||!Number.isSafeInteger(parsed)||parsed<1){
+      setError("Quantity must be a positive whole number.");
+      quantityInputRef.current?.focus();
+      return;
+    }
+    const product=quantityProduct;
+    const productId=Number(product.id);
     const stock=Number.isFinite(Number(product.stock))?Number(product.stock):0;
     const sellingPrice=Number(product.retailPrice??product.sellingPrice);
+    const existing=items.find(item=>item.productId===productId);
+    if(stock>0&&(existing?.quantity||0)+parsed>stock){
+      setError(`Only ${stock} items available in stock.`);
+      quantityInputRef.current?.focus();
+      return;
+    }
     setError("");
     setItems(current=>{
       const existing=current.find(i=>i.productId===productId);
-      if(existing){
-        if(stock>0&&existing.quantity>=stock){
-          setError(`Only ${stock} items available in stock.`);
-          return current;
-        }
-        return current.map(i=>i.productId===productId?{...i,quantity:i.quantity+1}:i);
-      }
-      return [...current,{
+      const nextQuantity=(existing?.quantity||0)+parsed;
+      if(existing)return [
+        {...existing,quantity:nextQuantity},
+        ...current.filter(i=>i.productId!==productId)
+      ];
+      return [{
         productId,
         sku:product.sku,
         name:product.name,
         category:product.category,
         stock,
         minStock:product.minimumStock,
-        quantity:1,
+        quantity:parsed,
         sellingPrice:Number.isFinite(sellingPrice)?sellingPrice:0,
         discount:0
-      }];
+      },...current];
     });
+    setQuantityProduct(null);
+    setQuantity("1");
     setQ("");
-    setResults([]);
     focusSearch();
   }
 
@@ -237,7 +274,7 @@ export default function Billing(){
           return;
         }
       }
-      if(product)addProduct(product);
+      if(product)openQuantityPopup(product);
       else setError(`No product found for "${text}".`);
     }
   }
@@ -252,7 +289,10 @@ export default function Billing(){
       if(e.key==="F9"){e.preventDefault();document.getElementById("payment-method")?.focus()}
       if(e.key==="F10"){e.preventDefault();completeSale()}
       if(e.ctrlKey&&e.key.toLowerCase()==="p"&&lastSale){e.preventDefault();window.print()}
-      if(e.key==="Escape"){setShowHeld(false);setError("")}
+      if(e.key==="Escape"){
+        if(quantityProduct){closeQuantityPopup();return}
+        setShowHeld(false);setError("")
+      }
     };
     window.addEventListener("keydown",handler);
     return()=>window.removeEventListener("keydown",handler);
@@ -289,7 +329,7 @@ export default function Billing(){
       <div className="search-box">
         <input ref={searchRef} className="pos-search" value={q} onChange={e=>{setQ(e.target.value);if(e.target.value.length)setShowPreview(false)}} onKeyDown={onSearchKey} placeholder="Search crackers by name, code or category..." />
         {results.length>0&&<div className="suggestions">{results.map((p,i)=>
-          <button type="button" key={p.id} className={i===selected?"active":""} onClick={()=>addProduct(p)}>
+          <button type="button" key={p.id} className={i===selected?"active":""} onClick={()=>openQuantityPopup(p)}>
             <b>{p.name}</b><span>{p.sku} - {p.category} - Stock {p.stock}</span><strong>Rs. {money(p.sellingPrice)}</strong>
           </button>
         )}</div>}
@@ -300,6 +340,25 @@ export default function Billing(){
       {pending&&<p role="status">Processing, please wait...</p>}
       {actionError&&<div className="alert" role="alert">{actionError}</div>}
       {error&&<div className="alert" role="status">{error}</div>}
+
+      {quantityProduct&&<div className="modal quantity-modal no-print" role="dialog" aria-modal="true" aria-labelledby="quantity-modal-title">
+        <div className="modal-box quantity-modal-box">
+          <div className="quantity-modal-header">
+            <div><span className="quantity-modal-eyebrow">Add to bill</span><h2 id="quantity-modal-title">{quantityProduct.name}</h2></div>
+            <button type="button" className="quantity-close" aria-label="Cancel quantity entry" onClick={closeQuantityPopup}>×</button>
+          </div>
+          <div className="quantity-product-meta"><span>Price</span><b>Rs. {money(quantityProduct.retailPrice??quantityProduct.sellingPrice)}</b></div>
+          <label className="quantity-entry-label">Quantity
+            <div className="quantity-entry">
+              <button type="button" aria-label="Decrease quantity" onClick={()=>setQuantity(value=>String(Math.max(1,(Number(value)||1)-1)))}>-</button>
+              <input ref={quantityInputRef} autoComplete="off" inputMode="numeric" pattern="[0-9]*" aria-label="Quantity" value={quantity} onChange={e=>setQuantity(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addProductToBill()}if(e.key==="Escape"){e.preventDefault();closeQuantityPopup()}}}/>
+              <button type="button" aria-label="Increase quantity" onClick={()=>setQuantity(value=>String((Number(value)||1)+1))}>+</button>
+            </div>
+          </label>
+          <div className="quantity-subtotal"><span>Subtotal</span><strong>Rs. {money((Number(quantityProduct.retailPrice??quantityProduct.sellingPrice)||0)*(Number(quantity)||0))}</strong></div>
+          <div className="quantity-modal-actions"><button type="button" className="btn ghost" onClick={closeQuantityPopup}>Cancel</button><button type="button" className="btn complete" onClick={addProductToBill}>Add to Bill</button></div>
+        </div>
+      </div>}
 
       {showCustomer&&<div className="panel compact-form">
         <input className="input" placeholder="Customer Name" value={customer.name} onChange={e=>setCustomer({...customer,name:e.target.value})}/>
